@@ -1,5 +1,9 @@
 package server;
 
+import reader.Message;
+import reader.MessageReader;
+import reader.Reader;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -137,7 +141,7 @@ public class ServerChatStringWithConsoleAndTimout {
     /**
      * Add a message to all connected clients queue
      *
-     * @param msg
+     * @param msg The message to broadcast to every clients
      */
     private void broadcast(Message msg) {
         selector.keys().stream().filter(selectionKey -> !selectionKey.isAcceptable()).map(key -> (Context) key.attachment()).forEach(context -> context.queueMessage(msg));
@@ -145,16 +149,6 @@ public class ServerChatStringWithConsoleAndTimout {
 
     private enum State {
         WORKING, STOP_ACCEPTING, SHUTDOWN
-    }
-
-    public interface Reader<T> {
-        ProcessStatus process(ByteBuffer bb);
-
-        T get();
-
-        void reset();
-
-        enum ProcessStatus {DONE, REFILL, ERROR}
     }
 
     private static class StateController {
@@ -173,213 +167,6 @@ public class ServerChatStringWithConsoleAndTimout {
             }
         }
     }
-
-    public record Message(String login, String msg) {
-        @Override
-        public String toString() {
-            return "[" + login + "]: " + msg;
-        }
-
-        public int length() {
-            return login.getBytes(UTF8).length + msg.getBytes(UTF8).length + Integer.BYTES * 2;
-        }
-    }
-
-    public static class MessageReader implements Reader<Message> {
-        private final StringReader stringReader = new StringReader();
-        private String login;
-        private String msg;
-        private State state = State.WAIT_LOGIN;
-
-        @Override
-        public ProcessStatus process(ByteBuffer bb) {
-            if (this.state == State.DONE || this.state == State.ERROR) {
-                throw new IllegalStateException();
-            }
-
-            for (; ; ) {
-                var status = stringReader.process(bb);
-                switch (status) {
-                    case DONE -> {
-                        if (state == State.WAIT_LOGIN) {
-                            login = stringReader.get();
-                            stringReader.reset();
-                            state = State.WAIT_MSG;
-                            break;
-                        }
-
-                        msg = stringReader.get();
-                        this.state = State.DONE;
-                        return ProcessStatus.DONE;
-                    }
-
-                    case REFILL -> {
-                        return ProcessStatus.REFILL;
-                    }
-                    case ERROR -> {
-                        this.state = State.ERROR;
-                        return ProcessStatus.ERROR;
-                    }
-                }
-            }
-
-        }
-
-        @Override
-        public Message get() {
-            if (this.state != State.DONE) {
-                throw new IllegalStateException();
-            } else {
-                return new Message(login, msg);
-            }
-        }
-
-        @Override
-        public void reset() {
-            this.state = State.WAIT_LOGIN;
-            stringReader.reset();
-        }
-
-        private enum State {
-            DONE, WAIT_LOGIN, WAIT_MSG, ERROR
-        }
-    }
-
-    public static class IntReader implements Reader<Integer> {
-
-        private final ByteBuffer internalBuffer = ByteBuffer.allocate(Integer.BYTES); // write-mode
-
-        private State state = State.WAITING;
-        private int value;
-
-        @Override
-        public ProcessStatus process(ByteBuffer buffer) {
-            if (state == State.DONE || state == State.ERROR) {
-                throw new IllegalStateException();
-            }
-            buffer.flip();
-            try {
-                if (buffer.remaining() <= internalBuffer.remaining()) {
-                    internalBuffer.put(buffer);
-                } else {
-                    var oldLimit = buffer.limit();
-                    buffer.limit(internalBuffer.remaining());
-                    internalBuffer.put(buffer);
-                    buffer.limit(oldLimit);
-                }
-            } finally {
-                buffer.compact();
-            }
-            if (internalBuffer.hasRemaining()) {
-                return ProcessStatus.REFILL;
-            }
-            state = State.DONE;
-            internalBuffer.flip();
-            value = internalBuffer.getInt();
-            return ProcessStatus.DONE;
-        }
-
-        @Override
-        public Integer get() {
-            if (state != State.DONE) {
-                throw new IllegalStateException();
-            }
-            return value;
-        }
-
-        @Override
-        public void reset() {
-            state = State.WAITING;
-            internalBuffer.clear();
-        }
-
-        private enum State {
-            DONE, WAITING, ERROR
-        }
-    }
-
-    public static class StringReader implements Reader<String> {
-        private final IntReader intReader = new IntReader();
-        private ByteBuffer internalBuffer = ByteBuffer.allocate(Integer.BYTES);
-        private State state = State.WAIT_INT;
-        private String value;
-        private int sizeValue = -1;
-
-        public ProcessStatus process(ByteBuffer buffer) {
-            if (this.state == State.DONE || this.state == State.ERROR) {
-                throw new IllegalStateException();
-            }
-
-            if (state == State.WAIT_INT) {
-                var status = intReader.process(buffer);
-                switch (status) {
-                    case DONE -> {
-                        sizeValue = intReader.get();
-                        if (sizeValue < 0 || sizeValue > BUFFER_SIZE) {
-                            this.state = State.ERROR;
-                            return ProcessStatus.ERROR;
-                        }
-                        intReader.reset();
-                        internalBuffer = ByteBuffer.allocate(sizeValue);
-                    }
-                    case REFILL -> {
-                        return ProcessStatus.REFILL;
-                    }
-                    case ERROR -> {
-                        this.state = State.ERROR;
-                        return ProcessStatus.ERROR;
-                    }
-                }
-            }
-
-            buffer.flip();
-            try {
-                if (buffer.remaining() <= this.internalBuffer.remaining()) {
-                    this.internalBuffer.put(buffer);
-                } else {
-                    int oldLimit = buffer.limit();
-                    var remaining = this.internalBuffer.remaining();
-                    var delta = buffer.position() == 0 ? 0 : sizeValue - buffer.position() + 1;
-                    buffer.limit(remaining + delta);
-                    this.internalBuffer.put(buffer);
-                    buffer.limit(oldLimit);
-                }
-            } finally {
-                buffer.compact();
-            }
-
-            if (this.internalBuffer.hasRemaining()) {
-                return ProcessStatus.REFILL;
-            } else {
-                this.internalBuffer.flip();
-                this.state = State.DONE;
-                this.value = UTF8.decode(internalBuffer).toString();
-                internalBuffer = ByteBuffer.allocate(Integer.BYTES);
-                return ProcessStatus.DONE;
-            }
-
-        }
-
-        public String get() {
-            if (this.state != State.DONE) {
-                throw new IllegalStateException();
-            } else {
-                return this.value;
-            }
-        }
-
-        public void reset() {
-            this.state = State.WAIT_INT;
-            this.internalBuffer = ByteBuffer.allocate(Integer.BYTES);
-            intReader.reset();
-
-        }
-
-        private enum State {
-            DONE, WAIT_INT, WAIT_STRING, ERROR
-        }
-    }
-
     static private class Context {
         private final SelectionKey key;
         private final SocketChannel sc;
@@ -441,9 +228,9 @@ public class ServerChatStringWithConsoleAndTimout {
         private void processOut() {
             while (!queue.isEmpty()) {
                 var message = queue.peek();
-                if (bufferOut.remaining() >= message.length() + Integer.BYTES * 2) {
+                if (bufferOut.remaining() >= message.length(UTF8) + Integer.BYTES * 2) {
                     message = queue.pop();
-                    bufferOut.putInt(message.login.getBytes(UTF_8).length).put(UTF8.encode(message.login)).putInt(message.msg.getBytes(UTF_8).length).put(UTF8.encode(message.msg));
+                    bufferOut.putInt(message.login().getBytes(UTF_8).length).put(UTF8.encode(message.login())).putInt(message.msg().getBytes(UTF_8).length).put(UTF8.encode(message.msg()));
                 }
             }
         }
