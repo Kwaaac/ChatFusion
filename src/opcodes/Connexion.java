@@ -1,5 +1,5 @@
 public enum Connexion {
-    LOGIN_ANONYMOUS(0), LOGIN_PASSWORD(1), LOGIN_ACCEPTED(2);
+    LOGIN_ANONYMOUS(0), LOGIN_PASSWORD(1), LOGIN_ACCEPTED(2), LOGIN_REFUSED(3);
 
 
     private static final HashMap<Integer, Connexion> codeMap = new HashMap();
