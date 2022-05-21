@@ -212,7 +212,7 @@ public class ServerChatFusion {
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
 
-        private final MessageReader messageReader = new MessageReader();
+        private final IntReader intReader = new IntReader();
         private final StringReader stringReader = new StringReader();
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
@@ -233,21 +233,33 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() {
-            System.out.println("Bonjour !");
+            bufferIn.compact();
             if (watcher == OpCode.IDLE) {
-                var optionalWatcher = OpCode.getOpCodeFromInt(bufferIn.flip().getInt());
-                bufferIn.compact();
-                if (optionalWatcher.isPresent()) {
-                    watcher = optionalWatcher.get();
-                } else {
-                    // Close the connection if it sent a wrong OpCode
-                    silentlyClose();
+                var status = intReader.process(bufferIn, 15);
+
+                switch (status) {
+                    case DONE -> {
+                        var optionalWatcher = OpCode.getOpCodeFromInt(bufferIn.flip().getInt());
+                        bufferIn.compact();
+                        if (optionalWatcher.isPresent()) {
+                            watcher = optionalWatcher.get();
+                        } else {
+                            // Close the connection if it sent a wrong OpCode
+                            silentlyClose();
+                        }
+                    }
+                    case ERROR -> {
+                        silentlyClose();
+                    }
+                    case REFILL -> {
+                    }
                 }
+
+
             }
 
-
             switch (watcher) {
-                case LOGIN_ANONYMOUS -> {
+                case LOGIN_ANONYMOUS, LOGIN_PASSWORD -> {
                     var status = stringReader.process(bufferIn, 30);
                     switch (status) {
                         case DONE -> {
@@ -256,8 +268,7 @@ public class ServerChatFusion {
                             stringReader.reset();
                         }
                         case ERROR -> {
-                            //TODO connection refused, not silently close
-                            silentlyClose();
+                            queueRequest(RequestFactory.loginRefused());
                         }
                         case REFILL -> {
                         }

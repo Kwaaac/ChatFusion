@@ -61,6 +61,7 @@ public class ClientChatFusion {
             return;
         }
         if (args.length == 4) {
+            System.out.println("bonjour");
             new ClientChatFusion(args[2], args[3], new InetSocketAddress(args[0], Integer.parseInt(args[1]))).launch();
             return;
         }
@@ -203,6 +204,7 @@ public class ClientChatFusion {
         private Context(SelectionKey key, String login, String password) {
             this(key, login);
             this.state = State.PENDING_PASSWORD;
+            this.password = password;
         }
 
         /**
