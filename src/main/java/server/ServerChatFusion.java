@@ -29,9 +29,9 @@ public class ServerChatFusion {
     private final Selector selector;
     private final Thread console;
     private final StateController stateController = new StateController();
-    private Context leader;
     private final HashMap<String, SelectionKey> clientConnected = new HashMap<>();
     private final HashMap<SelectionKey, String> serverConnected = new HashMap<>();
+    private Context leader;
 
     public ServerChatFusion(String serverName, InetSocketAddress socketAddress) throws IOException {
         Objects.requireNonNull(serverName);
@@ -174,12 +174,13 @@ public class ServerChatFusion {
      */
     private void broadcast(Request request, SelectionKey sender) {
         clientConnected.values().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
-        if(isLeader()) {
+
+        if (isLeader()) {
             serverConnected.keySet().stream().filter(s -> !s.equals(sender)).map(s -> (Context) s.attachment()).forEach(context -> context.queueRequest(request));
             return;
         }
-        if(!sender.equals(leader.key))
-            leader.queueRequest(request);
+
+        if (!sender.equals(leader.key)) leader.queueRequest(request);
     }
 
     public void addClient(String login, SelectionKey key) {
@@ -254,6 +255,7 @@ public class ServerChatFusion {
                         var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
                         if (optionalWatcher.isPresent()) {
                             watcher = optionalWatcher.get();
+                            intReader.reset();
                         } else {
                             // Close the connection if it sent a wrong OpCode
                             silentlyClose();
@@ -266,8 +268,6 @@ public class ServerChatFusion {
                         return;
                     }
                 }
-
-
             }
 
             switch (watcher) {
@@ -276,11 +276,14 @@ public class ServerChatFusion {
                     switch (status) {
                         case DONE -> {
                             var login = stringReader.get();
-                            server.addClient(login, key);
                             stringReader.reset();
+
+                            server.addClient(login, key);
+                            watcher = OpCode.IDLE;
                         }
                         case ERROR -> {
                             queueRequest(RequestFactory.loginRefused());
+                            watcher = OpCode.IDLE;
                         }
                         case REFILL -> {
                         }
@@ -295,18 +298,27 @@ public class ServerChatFusion {
                             switch (loginStatus) {
                                 case DONE -> {
                                     var message = messageReader.get();
-
+                                    messageReader.reset();
+                                    stringReader.reset();
+                                    System.out.println("Sending " + message);
                                     server.broadcast(RequestFactory.publicMessage(server.serverName, message), key);
+                                    watcher = OpCode.IDLE;
                                 }
-                                 case ERROR -> {
+                                case ERROR -> {
                                     /*Message ignoré*/
-                                 }
+                                    messageReader.reset();
+                                    stringReader.reset();
+                                    messageReader.reset();
+                                }
                                 case REFILL -> {
                                 }
                             }
                         }
                         case ERROR -> {
                             /*Message ignoré*/
+                            messageReader.reset();
+                            stringReader.reset();
+                            watcher = OpCode.IDLE;
                         }
                         case REFILL -> {
                         }

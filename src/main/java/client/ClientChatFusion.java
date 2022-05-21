@@ -61,7 +61,6 @@ public class ClientChatFusion {
             return;
         }
         if (args.length == 4) {
-            System.out.println("bonjour");
             new ClientChatFusion(args[2], args[3], new InetSocketAddress(args[0], Integer.parseInt(args[1]))).launch();
             return;
         }
@@ -117,7 +116,7 @@ public class ClientChatFusion {
         if (msg == null) {
             return;
         }
-        //TODO send public message
+
         uniqueContext.sendPublicMessage(new Message(login, msg));
     }
 
@@ -178,20 +177,14 @@ public class ClientChatFusion {
         private final String login;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
-
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
-
         private final MessageReader messageReader = new MessageReader();
-
         private final StringReader stringReader = new StringReader();
-
         private final IntReader intReader = new IntReader();
-
         private String serverName;
         private String password;
         private boolean closed = false;
         private State state;
-
         private OpCode watcher = OpCode.IDLE;
 
         private Context(SelectionKey key, String login) {
@@ -230,9 +223,12 @@ public class ClientChatFusion {
                         }
                         watcher = OpCode.LOGIN_ACCEPTED;
                     }
-                    case ERROR -> {return Reader.ProcessStatus.ERROR;}
-                    case REFILL -> {return Reader.ProcessStatus.REFILL;}
-
+                    case ERROR -> {
+                        return Reader.ProcessStatus.ERROR;
+                    }
+                    case REFILL -> {
+                        return Reader.ProcessStatus.REFILL;
+                    }
                 }
             }
 
@@ -252,18 +248,27 @@ public class ClientChatFusion {
          * and after the call
          */
         private void processIn() {
-            while (!closed && bufferIn.flip().hasRemaining()) {
-                bufferIn.compact();
-                if (state != State.CONNECTED) {
-                    switch (handleLogin()) {
+
+            if (bufferIn.position() == 0) {
+                return;
+            }
+            while (!closed && bufferIn.position() != bufferIn.limit()) {
+                if (watcher == OpCode.IDLE) {
+                    var status = intReader.process(bufferIn, 42 /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
+                    switch (status) {
                         case DONE -> {
-                            this.state = State.CONNECTED;
-                            System.out.println("Connection success");
-                            watcher = OpCode.IDLE;
-                            return;
+                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
+                            intReader.reset();
+                            if (optionalWatcher.isPresent()) {
+                                watcher = optionalWatcher.get();
+                            } else {
+                                // Close the connection if it sent a wrong OpCode
+                                silentlyClose();
+                                intReader.reset();
+                            }
                         }
                         case ERROR -> {
-                            System.out.println("Connection refused");
+                            // Server drunk
                             silentlyClose();
                             return;
                         }
@@ -272,71 +277,76 @@ public class ClientChatFusion {
                         }
                     }
                 }
-                if (watcher == OpCode.IDLE) {
-                    var status = intReader.process(bufferIn, 4 /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
-                    switch (status) {
-                        case DONE -> {
-                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
-                            if (optionalWatcher.isPresent()) {
-                                watcher = optionalWatcher.get();
-                            } else {
-                                // Close the connection if it sent a wrong OpCode
+
+
+                if (state != State.CONNECTED && watcher != OpCode.LOGIN_ACCEPTED && watcher != OpCode.LOGIN_REFUSED) {
+                    // Server is broken and should send its name before anything
+                    silentlyClose();
+                    return;
+                }
+
+                switch (watcher) {
+                    case LOGIN_ACCEPTED -> {
+                        var status = stringReader.process(bufferIn, 100);
+                        switch (status) {
+                            case DONE -> {
+                                serverName = stringReader.get();
+                                stringReader.reset();
+                                state = State.CONNECTED;
+                                watcher = OpCode.IDLE;
+                                System.out.println("\t" + "Connection established with server: " + serverName);
+                                return;
+                            }
+                            case ERROR -> {
+                                // Error with server login
                                 silentlyClose();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
                             }
                         }
-                        case ERROR -> {
-                            /*status inexistant*/
-                        }
-                        case REFILL -> {
-                        }
                     }
-
-                }
-                System.out.println(watcher);
-                switch (watcher) {
-
+                    case LOGIN_REFUSED -> {
+                        System.out.println("Connexion refused");
+                        silentlyClose();
+                    }
                     case MESSAGE -> {
                         var serverStatus = stringReader.process(bufferIn, 100);
                         switch (serverStatus) {
                             case DONE -> {
                                 var status = messageReader.process(bufferIn, 30);
+                                // Message printing process
                                 switch (status) {
                                     case DONE -> {
                                         System.out.println(messageReader.get().login() + "[" + stringReader.get() + "]: " + messageReader.get().msg());
                                         messageReader.reset();
                                         stringReader.reset();
+                                        watcher = OpCode.IDLE;
+                                        return;
                                     }
                                     case REFILL -> {
                                         return;
                                     }
-                                    case ERROR -> {}
+                                    case ERROR -> {
+                                        silentlyClose();
+                                        return;
+                                    }
                                 }
                             }
 
-                            case ERROR -> {}
+                            case ERROR -> {
+                                silentlyClose();
+                                return;
+                            }
 
-                            case REFILL -> {}
+                            case REFILL -> {
+                                return;
+                            }
                         }
                     }
-
                     default -> watcher = OpCode.IDLE;
                 }
-
-                /*
-                var process = messageReader.process(bufferIn, 1024);
-                switch (process) {
-                    case DONE -> {
-                        System.out.println(messageReader.get());
-                        messageReader.reset();
-                    }
-                    case REFILL -> {
-                        return;
-                    }
-                    case ERROR -> silentlyClose();
-                }
-            }
-            messageReader.reset();
-            */
             }
         }
 
@@ -355,8 +365,8 @@ public class ClientChatFusion {
         private void processOut() {
             while (!requestQueue.isEmpty()) {
                 if (bufferOut.remaining() >= requestQueue.peek().length()) {
-                    var encode = requestQueue.poll().encode();
-                    System.out.println(encode);
+                    var poll = requestQueue.poll();
+                    var encode = poll.encode();
                     bufferOut.put(encode);
                 }
             }
@@ -421,7 +431,6 @@ public class ClientChatFusion {
          *
          * @throws IOException
          */
-
         private void doWrite() throws IOException {
             sc.write(bufferOut.flip());
             bufferOut.compact();
