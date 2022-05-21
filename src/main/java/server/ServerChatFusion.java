@@ -1,8 +1,8 @@
 package main.java.server;
 
-import main.java.reader.Message;
-import main.java.reader.MessageReader;
-import main.java.reader.Reader;
+import main.java.OpCode;
+import main.java.Utils.RequestFactory;
+import main.java.reader.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -10,25 +10,31 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.Charset;
-import java.util.ArrayDeque;
-import java.util.Scanner;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ServerChatStringWithConsoleAndTimout {
+public class ServerChatFusion {
     private static final Charset UTF8 = UTF_8;
     private static final int BUFFER_SIZE = 1024;
-    private static final Logger logger = Logger.getLogger(ServerChatStringWithConsoleAndTimout.class.getName());
+    private static final Logger logger = Logger.getLogger(ServerChatFusion.class.getName());
     private static final long TIMEOUT = 60_000;
+    private final String serverName;
     private final ServerSocketChannel serverSocketChannel;
     private final Selector selector;
     private final Thread console;
     private final StateController stateController = new StateController();
+    private final ServerChatFusion leader = this;
+    private final HashMap<String, SelectionKey> clientConnected = new HashMap<>();
 
-    public ServerChatStringWithConsoleAndTimout(int port) throws IOException {
+    public ServerChatFusion(String serverName, int port) throws IOException {
+        Objects.requireNonNull(serverName);
+        if (serverName.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        this.serverName = serverName;
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(port));
         selector = Selector.open();
@@ -37,15 +43,30 @@ public class ServerChatStringWithConsoleAndTimout {
     }
 
     public static void main(String[] args) throws NumberFormatException, IOException {
-        if (args.length != 1) {
+        if (args.length != 2) {
             usage();
             return;
         }
-        new ServerChatStringWithConsoleAndTimout(Integer.parseInt(args[0])).launch();
+
+        new ServerChatFusion(args[0], Integer.parseInt(args[1])).launch();
     }
 
     private static void usage() {
-        System.out.println("Usage : ServerSumBetter port");
+        System.out.println("Usage : ServerSumBetter serverName port");
+    }
+
+    private boolean isLeader() {
+        return leader.equals(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ServerChatFusion that && Objects.equals(serverSocketChannel, that.serverSocketChannel) && Objects.equals(selector, that.selector) && Objects.equals(console, that.console) && Objects.equals(stateController, that.stateController) && Objects.equals(leader, that.leader) && Objects.equals(clientConnected, that.clientConnected);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(serverSocketChannel, selector, console, stateController, leader, clientConnected);
     }
 
     private void consoleRun() {
@@ -139,12 +160,29 @@ public class ServerChatStringWithConsoleAndTimout {
     }
 
     /**
-     * Add a message to all connected clients queue
+     * Add a request to all connected clients queue
      *
-     * @param msg The message to broadcast to every clients
+     * @param request The request to broadcast to every client
      */
-    private void broadcast(Message msg) {
-        selector.keys().stream().filter(selectionKey -> !selectionKey.isAcceptable()).map(key -> (Context) key.attachment()).forEach(context -> context.queueMessage(msg));
+    private void broadcast(Request request) {
+        clientConnected.values().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
+
+        //TODO send to servers
+    }
+
+    public void addClient(String login, SelectionKey key) {
+        var duplicate = (clientConnected.putIfAbsent(login, key) != null);
+
+        var client = (Context) key.attachment();
+
+        if (duplicate) {
+            // send connection refused
+            client.queueRequest(RequestFactory.loginRefused());
+            return;
+        }
+
+        // send connection accept
+        client.queueRequest(RequestFactory.loginAccepted(serverName));
     }
 
     private enum State {
@@ -167,19 +205,22 @@ public class ServerChatStringWithConsoleAndTimout {
             }
         }
     }
+
     static private class Context {
         private final SelectionKey key;
         private final SocketChannel sc;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
+
         private final MessageReader messageReader = new MessageReader();
-        private final ArrayDeque<Message> queue = new ArrayDeque<>();
-        private final ServerChatStringWithConsoleAndTimout server; // we could also have Context as an instance class,
+        private final StringReader stringReader = new StringReader();
+        private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
+        private final ServerChatFusion server; // we could also have Context as an instance class
+        private OpCode watcher = OpCode.IDLE;
         private boolean activeSinceLastTimeoutCheck = true;
-        // which would naturally give access to ServerChatInt.this
         private boolean closed = false;
 
-        private Context(ServerChatStringWithConsoleAndTimout server, SelectionKey key) {
+        private Context(ServerChatFusion server, SelectionKey key) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
             this.server = server;
@@ -192,6 +233,43 @@ public class ServerChatStringWithConsoleAndTimout {
          * after the call
          */
         private void processIn() {
+            System.out.println("Bonjour !");
+            if (watcher == OpCode.IDLE) {
+                var optionalWatcher = OpCode.getOpCodeFromInt(bufferIn.flip().getInt());
+                bufferIn.compact();
+                if (optionalWatcher.isPresent()) {
+                    watcher = optionalWatcher.get();
+                } else {
+                    // Close the connection if it sent a wrong OpCode
+                    silentlyClose();
+                }
+            }
+
+
+            switch (watcher) {
+                case LOGIN_ANONYMOUS -> {
+                    var status = stringReader.process(bufferIn, 30);
+                    switch (status) {
+                        case DONE -> {
+                            var login = stringReader.get();
+                            server.addClient(login, key);
+                            stringReader.reset();
+                        }
+                        case ERROR -> {
+                            //TODO connection refused, not silently close
+                            silentlyClose();
+                        }
+                        case REFILL -> {
+                        }
+                    }
+                }
+                default -> {
+                    // TODO temporary
+                    throw new UnsupportedOperationException();
+                }
+            }
+
+            /*
             for (; ; ) {
                 Reader.ProcessStatus status = messageReader.process(bufferIn);
                 switch (status) {
@@ -209,15 +287,16 @@ public class ServerChatStringWithConsoleAndTimout {
                     }
                 }
             }
+             */
         }
 
         /**
-         * Add a message to the message queue, tries to fill bufferOut and updateInterestOps
+         * Add a request to the request queue, tries to fill bufferOut and updateInterestOps
          *
-         * @param msg
+         * @param request request containing the opcode of the request and a buffer with the request's content
          */
-        public void queueMessage(Message msg) {
-            queue.add(msg);
+        public void queueRequest(Request request) {
+            requestQueue.add(request);
             processOut();
             updateInterestOps();
         }
@@ -226,11 +305,11 @@ public class ServerChatStringWithConsoleAndTimout {
          * Try to fill bufferOut from the message queue
          */
         private void processOut() {
-            while (!queue.isEmpty()) {
-                var message = queue.peek();
-                if (bufferOut.remaining() >= message.length(UTF8) + Integer.BYTES * 2) {
-                    message = queue.pop();
-                    bufferOut.putInt(message.login().getBytes(UTF_8).length).put(UTF8.encode(message.login())).putInt(message.msg().getBytes(UTF_8).length).put(UTF8.encode(message.msg()));
+            while (!requestQueue.isEmpty()) {
+                var request = requestQueue.peek();
+                if (bufferOut.remaining() >= request.length()) {
+                    request = requestQueue.pop();
+                    bufferOut.putInt(request.code().getOpCode()).put(request.buffer());
                 }
             }
         }
@@ -250,7 +329,7 @@ public class ServerChatStringWithConsoleAndTimout {
                 ops |= SelectionKey.OP_READ;
             }
 
-            if (!closed && (bufferOut.position() != 0 || !queue.isEmpty())) {
+            if (!closed && (bufferOut.position() != 0 || !requestQueue.isEmpty())) {
                 ops |= SelectionKey.OP_WRITE;
             }
 
@@ -267,8 +346,8 @@ public class ServerChatStringWithConsoleAndTimout {
                 silentlyClose();
             }
 
-            activeSinceLastTimeoutCheck = false;
-
+            // disabled for now
+            activeSinceLastTimeoutCheck = true;
         }
 
         private void silentlyClose() {

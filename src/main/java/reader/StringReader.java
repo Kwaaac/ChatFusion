@@ -13,17 +13,17 @@ public class StringReader implements Reader<String> {
     private String value;
     private int sizeValue = -1;
 
-    public ProcessStatus process(ByteBuffer buffer) {
+    public ProcessStatus process(ByteBuffer buffer, int maxValue) {
         if (this.state == State.DONE || this.state == State.ERROR) {
             throw new IllegalStateException();
         }
 
         if (state == State.WAIT_INT) {
-            var status = intReader.process(buffer);
+            var status = intReader.process(buffer, maxValue);
             switch (status) {
                 case DONE -> {
                     sizeValue = intReader.get();
-                    if (sizeValue < 0 || sizeValue > BUFFER_SIZE) {
+                    if (sizeValue < 0 || sizeValue > BUFFER_SIZE || sizeValue > maxValue) {
                         this.state = State.ERROR;
                         return ProcessStatus.ERROR;
                     }

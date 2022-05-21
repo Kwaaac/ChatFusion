@@ -9,13 +9,13 @@ public class MessageReader implements Reader<Message> {
     private State state = State.WAIT_LOGIN;
 
     @Override
-    public ProcessStatus process(ByteBuffer bb) {
+    public ProcessStatus process(ByteBuffer bb, int maxValue) {
         if (this.state == State.DONE || this.state == State.ERROR) {
             throw new IllegalStateException();
         }
 
         for (; ; ) {
-            var status = stringReader.process(bb);
+            var status = stringReader.process(bb, maxValue);
             switch (status) {
                 case DONE -> {
                     if (state == State.WAIT_LOGIN) {
@@ -39,7 +39,6 @@ public class MessageReader implements Reader<Message> {
                 }
             }
         }
-
     }
 
     @Override
