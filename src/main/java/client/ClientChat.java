@@ -1,7 +1,7 @@
-package client;
+package main.java.client;
 
-import reader.Message;
-import reader.MessageReader;
+import main.java.reader.Message;
+import main.java.reader.MessageReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -50,7 +50,7 @@ public class ClientChat {
     }
 
     private static void usage() {
-        System.out.println("Usage : client.ClientChat login hostname port");
+        System.out.println("Usage : main.java.client.ClientChat login hostname port");
     }
 
     private void consoleRun() {

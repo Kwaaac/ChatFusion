@@ -1,11 +1,10 @@
-package reader;
+package main.java.reader;
 
 import java.nio.ByteBuffer;
 
 public class IntReader implements Reader<Integer> {
 
     private final ByteBuffer internalBuffer = ByteBuffer.allocate(Integer.BYTES); // write-mode
-
     private State state = State.WAITING;
     private int value;
 
