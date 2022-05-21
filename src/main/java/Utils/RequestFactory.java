@@ -1,6 +1,7 @@
 package main.java.Utils;
 
 import main.java.OpCode;
+import main.java.reader.Message;
 import main.java.reader.Request;
 
 import java.nio.ByteBuffer;
@@ -60,4 +61,12 @@ public class RequestFactory {
         return new Request(OpCode.LOGIN_ACCEPTED, buffer.flip());
     }
 
+
+    public static Request publicMessage(String serverName, Message message) {
+        var serverNameLength = serverName.getBytes(UTF8).length;
+        var buffer = ByteBuffer.allocate(serverNameLength + Integer.BYTES + message.length(UTF8));
+        buffer.putInt(serverNameLength).put(UTF8.encode(serverName)).put(message.encode(UTF8));
+
+        return new Request(OpCode.MESSAGE, buffer.flip());
+    }
 }
