@@ -1,5 +1,6 @@
 package main.java.server;
 
+import main.java.OpCode;
 import main.java.reader.Message;
 import main.java.reader.MessageReader;
 import main.java.reader.Reader;
@@ -10,25 +11,27 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.Charset;
-import java.util.ArrayDeque;
-import java.util.Scanner;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ServerChatStringWithConsoleAndTimout {
+public class ServerChatFusion {
     private static final Charset UTF8 = UTF_8;
     private static final int BUFFER_SIZE = 1024;
-    private static final Logger logger = Logger.getLogger(ServerChatStringWithConsoleAndTimout.class.getName());
+    private static final Logger logger = Logger.getLogger(ServerChatFusion.class.getName());
     private static final long TIMEOUT = 60_000;
     private final ServerSocketChannel serverSocketChannel;
     private final Selector selector;
     private final Thread console;
     private final StateController stateController = new StateController();
 
-    public ServerChatStringWithConsoleAndTimout(int port) throws IOException {
+    private final ServerChatFusion leader = this;
+
+    private final HashMap<String, SelectionKey> clientConnected = new HashMap<>();
+
+    public ServerChatFusion(int port) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(port));
         selector = Selector.open();
@@ -41,11 +44,25 @@ public class ServerChatStringWithConsoleAndTimout {
             usage();
             return;
         }
-        new ServerChatStringWithConsoleAndTimout(Integer.parseInt(args[0])).launch();
+        new ServerChatFusion(Integer.parseInt(args[0])).launch();
     }
 
     private static void usage() {
         System.out.println("Usage : ServerSumBetter port");
+    }
+
+    private boolean isLeader() {
+        return leader.equals(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ServerChatFusion that && Objects.equals(serverSocketChannel, that.serverSocketChannel) && Objects.equals(selector, that.selector) && Objects.equals(console, that.console) && Objects.equals(stateController, that.stateController) && Objects.equals(leader, that.leader) && Objects.equals(clientConnected, that.clientConnected);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(serverSocketChannel, selector, console, stateController, leader, clientConnected);
     }
 
     private void consoleRun() {
@@ -144,7 +161,7 @@ public class ServerChatStringWithConsoleAndTimout {
      * @param msg The message to broadcast to every clients
      */
     private void broadcast(Message msg) {
-        selector.keys().stream().filter(selectionKey -> !selectionKey.isAcceptable()).map(key -> (Context) key.attachment()).forEach(context -> context.queueMessage(msg));
+        clientConnected.entrySet().stream().filter(client -> !client.getKey().equals(msg.login())).map(client -> (Context) client.getValue().attachment()).forEach(context -> context.queueMessage(msg));
     }
 
     private enum State {
@@ -167,6 +184,7 @@ public class ServerChatStringWithConsoleAndTimout {
             }
         }
     }
+
     static private class Context {
         private final SelectionKey key;
         private final SocketChannel sc;
@@ -174,12 +192,14 @@ public class ServerChatStringWithConsoleAndTimout {
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
         private final MessageReader messageReader = new MessageReader();
         private final ArrayDeque<Message> queue = new ArrayDeque<>();
-        private final ServerChatStringWithConsoleAndTimout server; // we could also have Context as an instance class,
+        private final ServerChatFusion server; // we could also have Context as an instance class
+
+        private OpCode watcher = OpCode.IDLE;
         private boolean activeSinceLastTimeoutCheck = true;
         // which would naturally give access to ServerChatInt.this
         private boolean closed = false;
 
-        private Context(ServerChatStringWithConsoleAndTimout server, SelectionKey key) {
+        private Context(ServerChatFusion server, SelectionKey key) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
             this.server = server;
@@ -192,6 +212,16 @@ public class ServerChatStringWithConsoleAndTimout {
          * after the call
          */
         private void processIn() {
+            if (watcher == OpCode.IDLE) {
+                var optionalWatcher = OpCode.getOpCodeFromInt(bufferIn.flip().getInt());
+                if (optionalWatcher.isPresent()) {
+                    watcher = optionalWatcher.get();
+                } else {
+                    // Close the connection if it send a wrong OpCode
+                    silentlyClose();
+                }
+            }
+
             for (; ; ) {
                 Reader.ProcessStatus status = messageReader.process(bufferIn);
                 switch (status) {

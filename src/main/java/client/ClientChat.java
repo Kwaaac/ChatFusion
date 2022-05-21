@@ -186,7 +186,7 @@ public class ClientChat {
         private boolean closed = false;
         private State state;
 
-        private OpCode watcher;
+        private OpCode watcher = OpCode.IDLE;
 
         private Context(SelectionKey key, String login) {
             this.key = key;
@@ -241,7 +241,7 @@ public class ClientChat {
                 if (state != State.CONNECTED) {
                     handleLogin();
                 }
-                
+
                 var process = messageReader.process(bufferIn);
                 switch (process) {
                     case DONE -> {
