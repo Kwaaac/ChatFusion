@@ -3,7 +3,7 @@ package main.java.reader;
 import java.nio.ByteBuffer;
 
 public interface Reader<T> {
-        ProcessStatus process(ByteBuffer bb);
+        ProcessStatus process(ByteBuffer bb, int maxValue);
 
         T get();
 
