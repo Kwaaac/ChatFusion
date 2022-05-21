@@ -301,7 +301,9 @@ public class ServerChatFusion {
                                     messageReader.reset();
                                     stringReader.reset();
                                     System.out.println("Sending " + message);
-                                    server.broadcast(RequestFactory.publicMessage(server.serverName, message), key);
+                                    var request = RequestFactory.publicMessage(server.serverName, message);
+                                    System.out.println(request.buffer());
+                                    server.broadcast(request, key);
                                     watcher = OpCode.IDLE;
                                 }
                                 case ERROR -> {
@@ -358,6 +360,11 @@ public class ServerChatFusion {
          * @param request request containing the opcode of the request and a buffer with the request's content
          */
         public void queueRequest(Request request) {
+            try {
+                System.out.println("Bonjour, je suis " + sc.getRemoteAddress().toString());
+            } catch (IOException e) {
+                System.out.println("awoa");
+            }
             requestQueue.add(request);
             processOut();
             updateInterestOps();
@@ -371,7 +378,8 @@ public class ServerChatFusion {
                 var request = requestQueue.peek();
                 if (bufferOut.remaining() >= request.length()) {
                     request = requestQueue.pop();
-                    bufferOut.putInt(request.code().getOpCode()).put(request.buffer());
+                    System.out.println(request);
+                    bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
             }
         }
