@@ -2,7 +2,10 @@ package main.java.server;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
-import main.java.reader.*;
+import main.java.reader.IntReader;
+import main.java.reader.MessageReader;
+import main.java.reader.Request;
+import main.java.reader.StringReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,17 +29,18 @@ public class ServerChatFusion {
     private final Selector selector;
     private final Thread console;
     private final StateController stateController = new StateController();
-    private final ServerChatFusion leader = this;
+    private Context leader;
     private final HashMap<String, SelectionKey> clientConnected = new HashMap<>();
+    private final HashMap<SelectionKey, String> serverConnected = new HashMap<>();
 
-    public ServerChatFusion(String serverName, int port) throws IOException {
+    public ServerChatFusion(String serverName, InetSocketAddress socketAddress) throws IOException {
         Objects.requireNonNull(serverName);
         if (serverName.isEmpty()) {
             throw new IllegalArgumentException();
         }
         this.serverName = serverName;
         serverSocketChannel = ServerSocketChannel.open();
-        serverSocketChannel.bind(new InetSocketAddress(port));
+        serverSocketChannel.bind(socketAddress);
         selector = Selector.open();
         this.console = new Thread(this::consoleRun);
         console.setDaemon(true);
@@ -48,7 +52,7 @@ public class ServerChatFusion {
             return;
         }
 
-        new ServerChatFusion(args[0], Integer.parseInt(args[1])).launch();
+        new ServerChatFusion(args[0], new InetSocketAddress(Integer.parseInt(args[1]))).launch();
     }
 
     private static void usage() {
@@ -56,7 +60,11 @@ public class ServerChatFusion {
     }
 
     private boolean isLeader() {
-        return leader.equals(this);
+        return leader == null;
+    }
+
+    private void setLeader(Context context) {
+        this.leader = context;
     }
 
     @Override
@@ -164,10 +172,14 @@ public class ServerChatFusion {
      *
      * @param request The request to broadcast to every client
      */
-    private void broadcast(Request request) {
+    private void broadcast(Request request, SelectionKey sender) {
         clientConnected.values().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
-
-        //TODO send to servers
+        if(isLeader()) {
+            serverConnected.keySet().stream().filter(s -> !s.equals(sender)).map(s -> (Context) s.attachment()).forEach(context -> context.queueRequest(request));
+            return;
+        }
+        if(!sender.equals(leader.key))
+            leader.queueRequest(request);
     }
 
     public void addClient(String login, SelectionKey key) {
@@ -214,6 +226,7 @@ public class ServerChatFusion {
 
         private final IntReader intReader = new IntReader();
         private final StringReader stringReader = new StringReader();
+        private final MessageReader messageReader = new MessageReader();
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
         private OpCode watcher = OpCode.IDLE;
@@ -232,15 +245,13 @@ public class ServerChatFusion {
          * The convention is that bufferIn is in write-mode before the call to process and
          * after the call
          */
-        private void processIn() {
-            bufferIn.compact();
+        private void processIn() throws IOException {
             if (watcher == OpCode.IDLE) {
                 var status = intReader.process(bufferIn, 15);
 
                 switch (status) {
                     case DONE -> {
-                        var optionalWatcher = OpCode.getOpCodeFromInt(bufferIn.flip().getInt());
-                        bufferIn.compact();
+                        var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
                         if (optionalWatcher.isPresent()) {
                             watcher = optionalWatcher.get();
                         } else {
@@ -252,6 +263,7 @@ public class ServerChatFusion {
                         silentlyClose();
                     }
                     case REFILL -> {
+                        return;
                     }
                 }
 
@@ -274,6 +286,33 @@ public class ServerChatFusion {
                         }
                     }
                 }
+
+                case MESSAGE -> {
+                    var serverStatus = stringReader.process(bufferIn, 100);
+                    switch (serverStatus) {
+                        case DONE -> {
+                            var loginStatus = messageReader.process(bufferIn, 30);
+                            switch (loginStatus) {
+                                case DONE -> {
+                                    var message = messageReader.get();
+
+                                    server.broadcast(RequestFactory.publicMessage(server.serverName, message), key);
+                                }
+                                 case ERROR -> {
+                                    /*Message ignoré*/
+                                 }
+                                case REFILL -> {
+                                }
+                            }
+                        }
+                        case ERROR -> {
+                            /*Message ignoré*/
+                        }
+                        case REFILL -> {
+                        }
+                    }
+                }
+
                 default -> {
                     // TODO temporary
                     throw new UnsupportedOperationException();
