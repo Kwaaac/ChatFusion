@@ -1,7 +1,7 @@
 package main.java.client;
 
-import main.java.reader.Message;
-import main.java.reader.MessageReader;
+import main.java.OpCode;
+import main.java.reader.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -29,10 +29,14 @@ public class ClientChat {
     private final InetSocketAddress serverAddress;
     private final String login;
     private final Thread console;
+    private String password;
     private Context uniqueContext;
 
     public ClientChat(String login, InetSocketAddress serverAddress) throws IOException {
         this.serverAddress = serverAddress;
+        if (login.getBytes(UTF8).length > 30) {
+            throw new IllegalArgumentException("Login length should be less than 30 bytes");
+        }
         this.login = login;
         this.sc = SocketChannel.open();
         this.selector = Selector.open();
@@ -40,17 +44,34 @@ public class ClientChat {
         console.setDaemon(true);
     }
 
+    public ClientChat(String login, String password, InetSocketAddress serverAddress) throws IOException {
+        this(login, serverAddress);
+        if (password.getBytes(UTF8).length > 30) {
+            throw new IllegalArgumentException("Password length should be less than 30 bytes");
+        }
+        this.password = password;
+    }
+
     public static void main(String[] args) throws NumberFormatException, IOException {
-        if (args.length != 3) {
+        if (args.length != 3 && args.length != 4) {
             usage();
             return;
         }
+        if (args.length == 4) {
+            new ClientChat(args[2], args[3], new InetSocketAddress(args[0], Integer.parseInt(args[1]))).launch();
+            return;
+        }
 
-        new ClientChat(args[0], new InetSocketAddress(args[1], Integer.parseInt(args[2]))).launch();
+        new ClientChat(args[2], new InetSocketAddress(args[0], Integer.parseInt(args[1]))).launch();
     }
 
     private static void usage() {
-        System.out.println("Usage : main.java.client.ClientChat login hostname port");
+        System.out.println("""
+                Usages :
+                Login anonymous: java ClientChat [hostname] [post] [login]
+                                
+                Login with password: java ClientChat [hostname] [post] [login] [password]
+                """);
     }
 
     private void consoleRun() {
@@ -70,7 +91,7 @@ public class ClientChat {
     public void launch() throws IOException {
         sc.configureBlocking(false);
         var key = sc.register(selector, SelectionKey.OP_CONNECT);
-        uniqueContext = new Context(key);
+        uniqueContext = password == null ? new Context(key, login) : new Context(key, login, password);
         key.attach(uniqueContext);
         sc.connect(serverAddress);
         console.start();
@@ -83,12 +104,13 @@ public class ClientChat {
             }
         }
     }
+
     /**
      * Processes the command from the BlockingQueue
      */
     private void processCommand() {
         var msg = sendThreadSafe.processCommand();
-        if(msg == null){
+        if (msg == null) {
             return;
         }
 
@@ -121,6 +143,9 @@ public class ClientChat {
         }
     }
 
+    private enum State {
+        CONNECTED, PENDING_ANONYMOUS, PENDING_PASSWORD
+    }
 
     private static class SendThreadSafe {
         private final Object lock = new Object();
@@ -135,6 +160,7 @@ public class ClientChat {
                 selector.wakeup();
             }
         }
+
         public String processCommand() {
             synchronized (lock) {
                 return msgQueue.poll();
@@ -145,15 +171,63 @@ public class ClientChat {
     static private class Context {
         private final SelectionKey key;
         private final SocketChannel sc;
+        private final String login;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
         private final ArrayDeque<Message> queue = new ArrayDeque<>();
         private final MessageReader messageReader = new MessageReader();
-        private boolean closed = false;
 
-        private Context(SelectionKey key) {
+        private final StringReader stringReader = new StringReader();
+
+        private final IntReader intReader = new IntReader();
+
+        private String serverName;
+        private String password;
+        private boolean closed = false;
+        private State state;
+
+        private OpCode watcher;
+
+        private Context(SelectionKey key, String login) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
+            this.login = login;
+            this.state = State.PENDING_ANONYMOUS;
+        }
+
+        private Context(SelectionKey key, String login, String password) {
+            this(key, login);
+            this.state = State.PENDING_PASSWORD;
+        }
+
+        /**
+         * handle the connection answer, set the context to connect if the connection is
+         * accepted, return refill for a refill if the server name is not complete
+         * or return an error if there the connection is refused or the string reader fail
+         *
+         * @return DONE if connected to server,
+         * REFILL if servername is not complete,
+         * ERROR if connection refused or reading failed
+         */
+        private Reader.ProcessStatus handleLogin() {
+            // If not a problem, because the client is not connected
+            if (watcher != OpCode.LOGIN_ACCEPTED) {
+                var result = bufferIn.getInt();
+                if (result == 3) {
+                    System.out.println("Connection refused");
+                    return Reader.ProcessStatus.ERROR;
+                }
+                watcher = OpCode.LOGIN_ACCEPTED;
+            }
+
+            var status = stringReader.process(bufferIn);
+            if (status == Reader.ProcessStatus.DONE) {
+                serverName = stringReader.get();
+                this.state = State.CONNECTED;
+                stringReader.reset();
+            }
+
+            return status;
         }
 
         /**
@@ -164,6 +238,10 @@ public class ClientChat {
          */
         private void processIn() {
             while (!closed && bufferIn.hasRemaining()) {
+                if (state != State.CONNECTED) {
+                    handleLogin();
+                }
+                
                 var process = messageReader.process(bufferIn);
                 switch (process) {
                     case DONE -> {
@@ -182,7 +260,6 @@ public class ClientChat {
 
         /**
          * Add a message to the message queue, tries to fill bufferOut and updateInterestOps
-         *
          */
         private void queueMessage(Message msg) {
             queue.add(msg);
@@ -268,9 +345,33 @@ public class ClientChat {
             updateInterestOps();
         }
 
+        /**
+         * Fill the bufferout with the login information to
+         * connect to the server
+         */
+        private void processConnection() {
+            // Sending anonymous connection request
+            if (state == State.PENDING_ANONYMOUS) {
+                bufferOut.putInt(OpCode.LOGIN_ANONYMOUS.getOpCode());
+                //login
+                bufferOut.putInt(login.getBytes(UTF8).length);
+                bufferOut.put(UTF8.encode(login));
+
+            } else { // Sending password connection request
+                bufferOut.putInt(OpCode.LOGIN_PASSWORD.getOpCode());
+                //login
+                bufferOut.putInt(login.getBytes(UTF8).length);
+                bufferOut.put(UTF8.encode(login));
+                //pwd
+                bufferOut.putInt(password.getBytes(UTF8).length);
+                bufferOut.put(UTF8.encode(password));
+            }
+        }
+
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
-            key.interestOps(SelectionKey.OP_READ);
+            processConnection();
+            key.interestOps(SelectionKey.OP_WRITE);
         }
     }
 }
