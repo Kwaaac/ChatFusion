@@ -1,8 +1,8 @@
-package server;
+package main.java.server;
 
-import reader.Message;
-import reader.MessageReader;
-import reader.Reader;
+import main.java.reader.Message;
+import main.java.reader.MessageReader;
+import main.java.reader.Reader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -108,7 +108,7 @@ public class ServerChatStringWithConsoleAndTimout {
                 ((Context) key.attachment()).doRead();
             }
         } catch (IOException e) {
-            logger.log(Level.INFO, "Connection closed with client due to IOException", e);
+            logger.log(Level.INFO, "Connection closed with main.java.client due to IOException", e);
             silentlyClose(key);
         }
     }

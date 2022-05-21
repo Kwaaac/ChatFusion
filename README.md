@@ -44,28 +44,28 @@ Les communications entre clients et serveurs et entre les serveurs se fait au mo
 1) Identification
    --------------
 
-a) Commande du client
+a) Commande du main.java.client
 ------------------
 
-Pour pouvoir interagir avec un serveur, un client doit s'authentifier auprès de ce serveur. L'authentification est donc la seule action possible pour un client avant l'établissement d'une connexion. Il y a deux types d'authentifications possibles : une authentification anonyme et une authentification avec mot de passe. Dans les deux cas, le client propose un login qui sera sont identifiant sur le serveur. Le serveur ne doit en aucun cas avoir deux clients connectés et authentifiés avec le même login.
+Pour pouvoir interagir avec un serveur, un main.java.client doit s'authentifier auprès de ce serveur. L'authentification est donc la seule action possible pour un main.java.client avant l'établissement d'une connexion. Il y a deux types d'authentifications possibles : une authentification anonyme et une authentification avec mot de passe. Dans les deux cas, le main.java.client propose un login qui sera sont identifiant sur le serveur. Le serveur ne doit en aucun cas avoir deux clients connectés et authentifiés avec le même login.
 
-Pour un identification anonyme, le client enverra la commande LOGIN_ANONYMOUS (0) d'OPCODE 0 suivi d'une STRING contenant le login. La string du LOGIN ne peut pas occuper plus de 30 octets.
+Pour un identification anonyme, le main.java.client enverra la commande LOGIN_ANONYMOUS (0) d'OPCODE 0 suivi d'une STRING contenant le login. La string du LOGIN ne peut pas occuper plus de 30 octets.
 
 LOGIN_ANONYMOUS(0) = 0 (OPCODE) login (STRING<=30)
 
-Pour une identification avec mot de passe, le client enverra la commande LOGIN_PASSWORD (1) d'OPCODE 1 suivi d'une STRING contenant le login et d'une STRING contenant le mot de passe. Les deux strings ne peuvent pas faire plus de 30 octets.
+Pour une identification avec mot de passe, le main.java.client enverra la commande LOGIN_PASSWORD (1) d'OPCODE 1 suivi d'une STRING contenant le login et d'une STRING contenant le mot de passe. Les deux strings ne peuvent pas faire plus de 30 octets.
 
 LOGIN_PASSWORD(1) = 1 (OPCODE) login (STRING<=30) password (STRING<=30)
 
 
-Si le serveur accepte l'authentification du client, il renvoie la commande LOGIN_ACCEPTED(2) d'OPCODE 2. Cette commande contient le nom du serveur.
+Si le serveur accepte l'authentification du main.java.client, il renvoie la commande LOGIN_ACCEPTED(2) d'OPCODE 2. Cette commande contient le nom du serveur.
 
 LOGIN_ACCEPTED(2) = 2 (OPCODE) serveur name (STRING<=100)
 
 Si le serveur refuse l'authentification, il renvoie la commande LOGIN_REFUSED(3) d'OPCODE 3.
 
 
-Seule les commandes LOGIN_ANONYMOUS(0) et LOGIN_PASSWORD(1) peuvent être traitées par le serveur tant que le client n'est pas identifié avec succès (à l'exception des commandes FUSION_*, voir partie ??). L'identification ne peut avoir lieu qu'une seule fois avec succès.
+Seule les commandes LOGIN_ANONYMOUS(0) et LOGIN_PASSWORD(1) peuvent être traitées par le serveur tant que le main.java.client n'est pas identifié avec succès (à l'exception des commandes FUSION_*, voir partie ??). L'identification ne peut avoir lieu qu'une seule fois avec succès.
 
 2) Fonctionnalité de chat
    ----------------------
@@ -73,15 +73,15 @@ Seule les commandes LOGIN_ANONYMOUS(0) et LOGIN_PASSWORD(1) peuvent être trait�
 a) Message public :
 -----------------
 
-Pour envoyer un message à tous les clients connectés au méga-serveur, un client envoie une commande MESSAGE(4) d'OPCODE 4.
+Pour envoyer un message à tous les clients connectés au méga-serveur, un main.java.client envoie une commande MESSAGE(4) d'OPCODE 4.
 
-MESSAGE(4) = 4 (OPCODE) server (STRING<=100) login (STRING<=30) msg (STRING<=1024)
+MESSAGE(4) = 4 (OPCODE) main.java.server (STRING<=100) login (STRING<=30) msg (STRING<=1024)
 
-Le serveur doit être le nom du serveur au quel le client est connecté.
+Le serveur doit être le nom du serveur au quel le main.java.client est connecté.
 Le login doit être le login utilisé lors de l'identification.
 Le message msg ne peut pas occuper plus de 1024 octets.
 
-Le serveur qui reçoit une commande MESSAGE(4) d'un client après avoir vérifié la validité du nom du serveur et du login va:
+Le serveur qui reçoit une commande MESSAGE(4) d'un main.java.client après avoir vérifié la validité du nom du serveur et du login va:
 
 1) envoyer cette même commande à tous les clients authentifiés sur le serveur serveur ;
 2) si ce serveur est le leader du méga-serveur, il va transmettre cette même commande à tous les autres serveurs du méga-serveur;
@@ -91,48 +91,48 @@ Si un serveur A reçoit une commande MESSAGE(4) d'un autre serveur B du même m�
 
 EXEMPLE.
 
-On a un méga serveur composé des serveurs A,B et C avec A le leader (c'est celui qui a plus petit nom dans l'ordre du dictionnaire). Un client D authentifié avec le login clientD auprès du serveur C et veut envoyer un message public. Il envoie une commande MESSAGE [4,"C","ClientD","Bonjour"] au serveur C. Le serveur C la transmet à tous les clients authentifiés et au serveur leader "A". Le serveur A, en recevant le message de C, le transmet à tous ses clients authentifiés et le transmet au serveur B. Le serveur B, en le recevant, le transmet à tous ses clients authentifiés.
+On a un méga serveur composé des serveurs A,B et C avec A le leader (c'est celui qui a plus petit nom dans l'ordre du dictionnaire). Un main.java.client D authentifié avec le login clientD auprès du serveur C et veut envoyer un message public. Il envoie une commande MESSAGE [4,"C","ClientD","Bonjour"] au serveur C. Le serveur C la transmet à tous les clients authentifiés et au serveur leader "A". Le serveur A, en recevant le message de C, le transmet à tous ses clients authentifiés et le transmet au serveur B. Le serveur B, en le recevant, le transmet à tous ses clients authentifiés.
 
 b) Message privé :
 ---------------
 
-Pour envoyer un message privé à un client ayant le login login_dest sur le serveur serveur_dest, un client envoie à son serveur une commande MESSAGE_PRIVATE(5) d'OPCODE 5.
+Pour envoyer un message privé à un main.java.client ayant le login login_dest sur le serveur serveur_dest, un main.java.client envoie à son serveur une commande MESSAGE_PRIVATE(5) d'OPCODE 5.
 
 MESSAGE_PRIVATE(5) = 5 (OPCODE) server_src (STRING<=100) login_src (STRING<=30) server_dst (STRING<=100) login_dest (STRING<=30) msg (STRING<=1024)
 
-Le serveur_src doit être le nom du serveur au quel le client est connecté.
-Le login_src doit être le login utilisé par le client lors de l'authentification.
+Le serveur_src doit être le nom du serveur au quel le main.java.client est connecté.
+Le login_src doit être le login utilisé par le main.java.client lors de l'authentification.
 Le serveur_dst est le nom du serveur sur lequel se trouve le destinataire du message privé.
 Le login_dst est le login du destinataire sur le serveur_dst.
 
-Si un serveur A reçoit une commande MESSAGE_PRIVATE(5) d'un client, après avoir vérifié sa validité, va :
+Si un serveur A reçoit une commande MESSAGE_PRIVATE(5) d'un main.java.client, après avoir vérifié sa validité, va :
 
-1) si server_dst est A, transférer la commande au client de login_dst s'il existe (sinon la commande est ignorée)
+1) si server_dst est A, transférer la commande au main.java.client de login_dst s'il existe (sinon la commande est ignorée)
 2) si server_dst est un autre serveur, il va :
    a) s'il n’est pas leader, transférer le message au leader
    b) s'il est leader, transférer le message au server_dst s'il existe (sinon la commande est ignorée)
 
 Si un serveur A reçoit une commande MESSAGE_PRIVATE(5) d'un autre serveur B du même méga-serveur, il va :
-1) transmettre la commande au client de login login_dst (s'il existe) si le nom de A est server_dst
+1) transmettre la commande au main.java.client de login login_dst (s'il existe) si le nom de A est server_dst
 2) sinon, si A est bien le leader du méga-serveur, il transmet le message au serveur de nom server_dst (s'il existe)
 
 EXEMPLE.
 
-On a un méga-serveur composé des serveurs A,B et C avec A le leader (c'est celui qui a plus petit nom dans l'ordre du dictionnaire). Un client D  authentifié avec le login clientD auprès du serveur C veut envoyer un message privé au client E qui est authentifié avec le login clientE au prêt du serveur B. Le client D va envoyer au serveur C la commande [5,"C","clientD","B","clientE","Bonjour à toi clientE"].
-Le serveur C va envoyer cette commande au leader A qui va la transmettre au serveur B qui va enfin le transmettre au client ayant le login clientE (s'il existe).
+On a un méga-serveur composé des serveurs A,B et C avec A le leader (c'est celui qui a plus petit nom dans l'ordre du dictionnaire). Un main.java.client D  authentifié avec le login clientD auprès du serveur C veut envoyer un message privé au main.java.client E qui est authentifié avec le login clientE au prêt du serveur B. Le main.java.client D va envoyer au serveur C la commande [5,"C","clientD","B","clientE","Bonjour à toi clientE"].
+Le serveur C va envoyer cette commande au leader A qui va la transmettre au serveur B qui va enfin le transmettre au main.java.client ayant le login clientE (s'il existe).
 
 
 c) Envoi d'un fichier privé :
 --------------------------
 
 L'envoi d'un fichier en privé suit la même logique que l'envoi des messages privés.
-Pour ne pas créer de commande de taille trop importante, le fichier à envoyer est coupé en n morceaux de taille au plus 5000 octets. Un client voulant envoyer un fichier au client ayant le login login_dest sur le serveur_dst enverra à son serveur une série de commandes FILE_PRIVATE d'OPCODE 6. Chaque commande FILE_PRIVATE correspondra à un morceau du fichier.
+Pour ne pas créer de commande de taille trop importante, le fichier à envoyer est coupé en n morceaux de taille au plus 5000 octets. Un main.java.client voulant envoyer un fichier au main.java.client ayant le login login_dest sur le serveur_dst enverra à son serveur une série de commandes FILE_PRIVATE d'OPCODE 6. Chaque commande FILE_PRIVATE correspondra à un morceau du fichier.
 
 FILE_PRIVATE(6) = 6 (OPCODE) server_src (STRING<=100) login_src (STRING<=30) server_dst (STRING<=100) login_dest (STRING<=30) filename (STRING<=100) nb_blocks (INT) block_size (INT) block (BYTES)
 
 
-Le serveur_src doit être le nom du serveur au quel le client est connecté.
-Le login_src doit être le login utilisé par le client lors de l'authentification.
+Le serveur_src doit être le nom du serveur au quel le main.java.client est connecté.
+Le login_src doit être le login utilisé par le main.java.client lors de l'authentification.
 Le serveur_dst est le nom du serveur sur lequel se trouve le destinataire du message privé.
 Le login_dst est le login du destinataire sur le serveur_dst.
 Le filename est le nom du fichier.
