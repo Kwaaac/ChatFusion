@@ -118,7 +118,7 @@ public class ClientChatFusion {
             return;
         }
         //TODO send public message
-        //uniqueContext.queueMessage(new Message(login, msg));
+        uniqueContext.sendPublicMessage(new Message(login, msg));
     }
 
     private void treatKey(SelectionKey key) {
@@ -219,12 +219,21 @@ public class ClientChatFusion {
         private Reader.ProcessStatus handleLogin() {
             // If not a problem, because the client is not connected
             if (watcher != OpCode.LOGIN_ACCEPTED) {
-                var result = bufferIn.getInt();
-                if (result == 3) {
-                    System.out.println("Connection refused");
-                    return Reader.ProcessStatus.ERROR;
+                var status = intReader.process(bufferIn, 42);
+                switch (status) {
+                    case DONE -> {
+                        var result = intReader.get();
+                        intReader.reset();
+                        if (result == 3) {
+                            System.out.println("Connection refused");
+                            return Reader.ProcessStatus.ERROR;
+                        }
+                        watcher = OpCode.LOGIN_ACCEPTED;
+                    }
+                    case ERROR -> {return Reader.ProcessStatus.ERROR;}
+                    case REFILL -> {return Reader.ProcessStatus.REFILL;}
+
                 }
-                watcher = OpCode.LOGIN_ACCEPTED;
             }
 
             var status = stringReader.process(bufferIn, 100);
@@ -243,22 +252,74 @@ public class ClientChatFusion {
          * and after the call
          */
         private void processIn() {
-            while (!closed && bufferIn.hasRemaining()) {
+            while (!closed && bufferIn.flip().hasRemaining()) {
+                bufferIn.compact();
                 if (state != State.CONNECTED) {
                     switch (handleLogin()) {
                         case DONE -> {
                             this.state = State.CONNECTED;
                             System.out.println("Connection success");
                             watcher = OpCode.IDLE;
+                            return;
                         }
                         case ERROR -> {
                             System.out.println("Connection refused");
                             silentlyClose();
+                            return;
                         }
                         case REFILL -> {
                             return;
                         }
                     }
+                }
+                if (watcher == OpCode.IDLE) {
+                    var status = intReader.process(bufferIn, 4 /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
+                    switch (status) {
+                        case DONE -> {
+                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
+                            if (optionalWatcher.isPresent()) {
+                                watcher = optionalWatcher.get();
+                            } else {
+                                // Close the connection if it sent a wrong OpCode
+                                silentlyClose();
+                            }
+                        }
+                        case ERROR -> {
+                            /*status inexistant*/
+                        }
+                        case REFILL -> {
+                        }
+                    }
+
+                }
+                System.out.println(watcher);
+                switch (watcher) {
+
+                    case MESSAGE -> {
+                        var serverStatus = stringReader.process(bufferIn, 100);
+                        switch (serverStatus) {
+                            case DONE -> {
+                                var status = messageReader.process(bufferIn, 30);
+                                switch (status) {
+                                    case DONE -> {
+                                        System.out.println(messageReader.get().login() + "[" + stringReader.get() + "]: " + messageReader.get().msg());
+                                        messageReader.reset();
+                                        stringReader.reset();
+                                    }
+                                    case REFILL -> {
+                                        return;
+                                    }
+                                    case ERROR -> {}
+                                }
+                            }
+
+                            case ERROR -> {}
+
+                            case REFILL -> {}
+                        }
+                    }
+
+                    default -> watcher = OpCode.IDLE;
                 }
 
                 /*
@@ -384,6 +445,10 @@ public class ClientChatFusion {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             processConnection();
             key.interestOps(SelectionKey.OP_WRITE);
+        }
+
+        public void sendPublicMessage(Message message) {
+            queueRequest(RequestFactory.publicMessage(serverName, message));
         }
     }
 }
