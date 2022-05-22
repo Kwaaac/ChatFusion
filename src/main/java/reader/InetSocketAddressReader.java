@@ -88,7 +88,6 @@ public class InetSocketAddressReader implements Reader<InetSocketAddress> {
         }
 
         var status = intReader.process(bb, maxValue);
-
         switch (status) {
             case DONE -> {
                 port = intReader.get();

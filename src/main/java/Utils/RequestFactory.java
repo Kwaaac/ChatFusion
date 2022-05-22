@@ -86,9 +86,10 @@ public class RequestFactory {
         var bufferAddress = InetSocketAddressConverter.encodeInetSocketAddress(address);
         var listServerFusion = Arrays.stream(names).map(StringChatFusion::new).toList();
 
-        var buffer = ByteBuffer.allocate(strServer.bufferLength() + bufferAddress.remaining() + (int) listServerFusion.stream().mapToInt(StringChatFusion::bufferLength).count());
+        var buffer = ByteBuffer.allocate(strServer.bufferLength() + bufferAddress.remaining() + Integer.BYTES + (int) listServerFusion.stream().mapToInt(StringChatFusion::bufferLength).count());
 
         buffer.put(strServer.encode()).put(bufferAddress);
+        buffer.putInt(nbMembers);
         listServerFusion.stream().map(StringChatFusion::encode).forEach(buffer::put);
 
         return new Request(OpCode.FUSION_INIT, buffer.flip());
@@ -96,10 +97,16 @@ public class RequestFactory {
 
     /**
      * TODO
+     *
      * @return
      */
     public static Request fusionInitKO() {
         return new Request(OpCode.FUSION_INIT_KO, ByteBuffer.allocate(0));
+    }
+
+    public static Request fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
+        var requestInit = fusionInit(serverName, address, nbMember, names);
+        return new Request(OpCode.FUSION_INIT_OK, requestInit.buffer());
     }
 
     /**
@@ -108,7 +115,7 @@ public class RequestFactory {
      * @param address
      * @return
      */
-    public static Request fusionInitForward(InetSocketAddress address){
+    public static Request fusionInitForward(InetSocketAddress address) {
         return new Request(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
     }
 }

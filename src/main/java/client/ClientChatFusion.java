@@ -453,6 +453,7 @@ public class ClientChatFusion {
         }
 
         public void doConnect() throws IOException {
+            System.out.println("oui?.");
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             processConnection();
             key.interestOps(SelectionKey.OP_WRITE);
