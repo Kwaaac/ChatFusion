@@ -2,7 +2,10 @@ package main.java.server;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
-import main.java.reader.*;
+import main.java.reader.IntReader;
+import main.java.reader.MessageReader;
+import main.java.reader.Request;
+import main.java.reader.StringReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -232,8 +235,6 @@ public class ServerChatFusion {
         private final IntReader intReader = new IntReader();
         private final StringReader stringReader = new StringReader();
         private final MessageReader messageReader = new MessageReader();
-
-        private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
         private OpCode watcher = OpCode.IDLE;
@@ -297,82 +298,67 @@ public class ServerChatFusion {
                 }
 
                 case MESSAGE -> {
-                    messageServerHandle();
-                }
-
-                case FUSION_INIT -> {
                     var serverStatus = stringReader.process(bufferIn, 100);
                     switch (serverStatus) {
                         case DONE -> {
-                            var serverFusionName = stringReader.get();
-                            stringReader.reset();
-
-                            if (!server.isLeader()) {
-                                ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));
-                            }
-                            if (server.serverConnected.containsValue(serverFusionName)) {
-                                ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                            }
-
-                            var addressStatus = addressReader.process(bufferIn, 16);
-                            switch (addressStatus) {
+                            var loginStatus = messageReader.process(bufferIn, 30);
+                            switch (loginStatus) {
                                 case DONE -> {
-                                    var address = addressReader.get();
-                                    addressReader.reset();
+                                    var message = messageReader.get();
+                                    messageReader.reset();
+                                    stringReader.reset();
+                                    System.out.println("Sending " + message);
+                                    var request = RequestFactory.publicMessage(server.serverName, message);
+                                    System.out.println(request.buffer());
+                                    server.broadcast(request, key);
+                                    watcher = OpCode.IDLE;
                                 }
                                 case ERROR -> {
-                                    addressReader.reset();
+                                    /*Message ignoré*/
+                                    messageReader.reset();
+                                    stringReader.reset();
+                                    messageReader.reset();
                                 }
                                 case REFILL -> {
                                 }
                             }
                         }
                         case ERROR -> {
+                            /*Message ignoré*/
+                            messageReader.reset();
                             stringReader.reset();
+                            watcher = OpCode.IDLE;
                         }
                         case REFILL -> {
                         }
                     }
                 }
+
                 default -> {
                     // TODO temporary
                     throw new UnsupportedOperationException();
                 }
             }
-        }
 
-        private void messageServerHandle() {
-            var serverStatus = stringReader.process(bufferIn, 100);
-            switch (serverStatus) {
-                case DONE -> {
-                    var loginStatus = messageReader.process(bufferIn, 30);
-                    switch (loginStatus) {
-                        case DONE -> {
-                            var message = messageReader.get();
-                            messageReader.reset();
-                            stringReader.reset();
-                            var request = RequestFactory.publicMessage(server.serverName, message);
-                            server.broadcast(request, key);
-                            watcher = OpCode.IDLE;
-                        }
-                        case ERROR -> {
-                            /*Message ignoré*/
-                            messageReader.reset();
-                            stringReader.reset();
-                        }
-                        case REFILL -> {
-                        }
+            /*
+            for (; ; ) {
+                Reader.ProcessStatus status = messageReader.process(bufferIn);
+                switch (status) {
+                    case DONE -> {
+                        var value = messageReader.get();
+                        server.broadcast(value);
+                        messageReader.reset();
+                    }
+                    case REFILL -> {
+                        return;
+                    }
+                    case ERROR -> {
+                        silentlyClose();
+                        return;
                     }
                 }
-                case ERROR -> {
-                    /*Message ignored*/
-                    messageReader.reset();
-                    stringReader.reset();
-                    watcher = OpCode.IDLE;
-                }
-                case REFILL -> {
-                }
             }
+             */
         }
 
         /**
@@ -401,6 +387,7 @@ public class ServerChatFusion {
                         requestQueue.add(request);
                         return;
                     }
+                    System.out.println(request);
                     bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
             }
