@@ -120,6 +120,7 @@ public class RequestFactory {
     }
 
     public static Request fusionMerge() {
-        return new Request(OpCode.FUSION_MERGE, )
+        //return new Request(OpCode.FUSION_MERGE, )
+        return null;
     }
 }

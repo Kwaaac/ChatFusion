@@ -70,7 +70,7 @@ public class ServerChatFusion {
     }
 
     private boolean isLeader() {
-        return leader == null;
+        return leader.server == this;
     }
 
     private void setLeader(Context context) {
@@ -305,12 +305,15 @@ public class ServerChatFusion {
 
         private int nbMembers;
         private String serverSrc;
+        private InetSocketAddress address;
 
         private Context(ServerChatFusion server, SelectionKey key) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
             this.server = server;
         }
+
+        
 
         /**
          * Process the content of bufferIn
@@ -319,7 +322,6 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            System.out.println("OUIBONJOUR?");
             if (watcher == OpCode.IDLE) {
                 var status = intReader.process(bufferIn, 15);
 
@@ -372,27 +374,31 @@ public class ServerChatFusion {
                 }
 
                 case FUSION_INIT_OK -> {
-                    var serverStatus = stringReader.process(bufferIn, 100);
-                    switch (serverStatus) {
-                        case DONE -> {
-                            var otherServer = stringReader.get();
-                            stringReader.reset();
-                            var result = otherServer.compareTo(server.serverName);
-                            if(result == 0) {
-                                logger.severe("Error : same server name !");
-                            }
-                            if (result < 0) {
-                                server.setLeader((Context) key.attachment());
-                                for(var key : server.serverConnected.keySet()) {
-                                    ((Context) key.attachment()).queueRequest(RequestFactory.);
+                    if(requestState == RequestState.ANYTHING) {
+                        var serverStatus = stringReader.process(bufferIn, 100);
+                        switch (serverStatus) {
+                            case DONE -> {
+                                var otherServer = stringReader.get();
+                                stringReader.reset();
+                                var result = otherServer.compareTo(server.serverName);
+                                if (result == 0) {
+                                    logger.severe("Error : same server name !");
+                                }
+                                if (result < 0) {
+                                    server.setLeader((Context) key.attachment());
+                                    for (var key : server.serverConnected.keySet()) {
+                                        //((Context) key.attachment()).queueRequest(RequestFactory.);
+                                    }
                                 }
                             }
+                            case ERROR -> {
+                                logger.severe("Error server fusion");
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
                         }
-                        case ERROR -> {
-                            logger.severe("Error server fusion");
-                            return;
-                        }
-                        case REFILL -> {return;}
                     }
                 }
 
@@ -433,7 +439,7 @@ public class ServerChatFusion {
                         var addressStatus = addressReader.process(bufferIn, 16);
                         switch (addressStatus) {
                             case DONE -> {
-                                var address = addressReader.get();
+                                address = addressReader.get();
                                 addressReader.reset();
                                 requestState = RequestState.NB_MEMBERS;
                             }
@@ -448,6 +454,7 @@ public class ServerChatFusion {
                     }
 
                     if (requestState == RequestState.NB_MEMBERS) {
+
                         var nbMembersStatus = intReader.process(bufferIn, 42);
                         switch (nbMembersStatus) {
                             case DONE -> {
@@ -455,9 +462,10 @@ public class ServerChatFusion {
                                 intReader.reset();
 
                                 requestState = RequestState.SERVER_NAMES;
+                                index_members = 0;
                             }
                             case ERROR -> {
-                                addressReader.reset();
+                                intReader.reset();
                                 return;
                             }
                             case REFILL -> {
@@ -482,6 +490,7 @@ public class ServerChatFusion {
                                 case ERROR -> {
                                     watcher = OpCode.IDLE;
                                     requestState = RequestState.ANYTHING;
+                                    stringReader.reset();
                                     return;
                                 }
 
@@ -490,7 +499,10 @@ public class ServerChatFusion {
                                 }
                             }
                         }
-                        // ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, server.serverSocketChannel, server.clientConnected.size(), server.clientConnected.values().toArray()));
+                        System.out.println("FusionsInitFrom: " + serverSrc + ":" + address + " :: " + nbMembers);
+
+                        String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
                     }
 
                 }
