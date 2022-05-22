@@ -146,25 +146,17 @@ public class ServerChatFusion {
         }
 
         var commands = msg.split(" ");
-        System.out.println(Arrays.toString(commands));
         if (leaderSocketChannel.isConnected()) {
             leaderSocketChannel.close();
         }
-        var remote = new InetSocketAddress(commands[0], Integer.parseInt(commands[1]));
-        leaderSocketChannel.connect(remote);
-        var key = leaderSocketChannel.register(selector, SelectionKey.OP_CONNECT);
 
+        leaderSocketChannel.connect(new InetSocketAddress(commands[0], Integer.parseInt(commands[1])));
+        var key = leaderSocketChannel.register(selector, SelectionKey.OP_CONNECT);
         leader = new Context(this, key);
         key.attach(leader);
-        System.out.println(leaderSocketChannel.isConnected());
-
-        System.out.println("test: " + remote);
-        String[] names = serverConnected.values().stream().toList().toArray(new String[0]);
-        leader.queueRequest(RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names));
     }
 
     private void treatKey(SelectionKey key) {
-
         try {
             if (key.isValid() && key.isAcceptable() && stateController.getState() == State.WORKING) {
                 doAccept(key);
@@ -176,9 +168,9 @@ public class ServerChatFusion {
         }
         try {
             if (key.isValid() && key.isConnectable()) {
+                System.out.println("couou?");
                 ((Context) key.attachment()).doConnect();
             }
-
             if (key.isValid() && key.isWritable()) {
                 ((Context) key.attachment()).doWrite();
             }
@@ -380,8 +372,6 @@ public class ServerChatFusion {
                 }
 
                 case FUSION_INIT -> {
-                    System.out.println("COUUUCOUUUUUUU");
-
                     if (!server.isLeader()) {
                         ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));
                         requestState = RequestState.ANYTHING;
@@ -389,7 +379,7 @@ public class ServerChatFusion {
                         return;
                     }
 
-                    if (requestState == RequestState.SERVER_NAME_SRC) {
+                    if (requestState == RequestState.SERVER_NAME_SRC || requestState == RequestState.ANYTHING) {
                         var serverStatus = stringReader.process(bufferIn, 100);
                         switch (serverStatus) {
                             case DONE -> {
@@ -402,64 +392,82 @@ public class ServerChatFusion {
                                     return;
                                 }
 
-
-                                var addressStatus = addressReader.process(bufferIn, 16);
-                                switch (addressStatus) {
-                                    case DONE -> {
-                                        var address = addressReader.get();
-                                        addressReader.reset();
-                                        var nbMembersStatus = intReader.process(bufferIn, 42);
-                                        switch (nbMembersStatus) {
-                                            case DONE -> {
-                                                nbMembers = intReader.get();
-                                                intReader.reset();
-
-                                                for (; index_members < nbMembers; index_members++) {
-                                                    var memberStatus = stringReader.process(bufferIn, 30);
-                                                    switch (memberStatus) {
-                                                        case DONE -> {
-                                                            var member = stringReader.get();
-                                                            if (server.clientConnected.containsKey(member)) {
-                                                                ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                                                                return;
-                                                            }
-                                                            stringReader.reset();
-                                                            server.memberAddList.add(member);
-                                                        }
-                                                        case ERROR -> {
-                                                            watcher = OpCode.IDLE;
-                                                            requestState = RequestState.ANYTHING;
-                                                            return;
-                                                        }
-
-                                                        case REFILL -> {
-                                                            return;
-                                                        }
-                                                    }
-                                                }
-//                                                ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, server.serverSocketChannel, server.clientConnected.size(), server.clientConnected.values().toArray()));
-                                            }
-                                            case ERROR -> {
-                                                addressReader.reset();
-                                            }
-                                            case REFILL -> {
-                                            }
-                                        }
-                                    }
-                                    case ERROR -> {
-                                        addressReader.reset();
-                                    }
-                                    case REFILL -> {
-                                    }
-                                }
+                                requestState = RequestState.ADDRESS;
                             }
                             case ERROR -> {
                                 stringReader.reset();
+                                return;
                             }
                             case REFILL -> {
+                                return;
                             }
                         }
                     }
+
+                    if (requestState == RequestState.ADDRESS) {
+                        var addressStatus = addressReader.process(bufferIn, 16);
+                        switch (addressStatus) {
+                            case DONE -> {
+                                var address = addressReader.get();
+                                addressReader.reset();
+                                requestState = RequestState.NB_MEMBERS;
+                            }
+                            case ERROR -> {
+                                addressReader.reset();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
+                        }
+                    }
+
+                    if (requestState == RequestState.NB_MEMBERS) {
+                        var nbMembersStatus = intReader.process(bufferIn, 42);
+                        switch (nbMembersStatus) {
+                            case DONE -> {
+                                nbMembers = intReader.get();
+                                intReader.reset();
+
+                                requestState = RequestState.SERVER_NAMES;
+                            }
+                            case ERROR -> {
+                                addressReader.reset();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
+                        }
+                    }
+
+                    if (requestState == RequestState.SERVER_NAMES) {
+                        for (; index_members < nbMembers; index_members++) {
+                            var memberStatus = stringReader.process(bufferIn, 30);
+                            switch (memberStatus) {
+                                case DONE -> {
+                                    var member = stringReader.get();
+                                    if (server.clientConnected.containsKey(member)) {
+                                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
+                                        return;
+                                    }
+                                    stringReader.reset();
+                                    server.memberAddList.add(member);
+                                }
+                                case ERROR -> {
+                                    watcher = OpCode.IDLE;
+                                    requestState = RequestState.ANYTHING;
+                                    return;
+                                }
+
+                                case REFILL -> {
+                                    return;
+                                }
+                            }
+                        }
+                        // ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, server.serverSocketChannel, server.clientConnected.size(), server.clientConnected.values().toArray()));
+                    }
+
                 }
                 default -> {
                     // TODO temporary
@@ -545,11 +553,6 @@ public class ServerChatFusion {
                         requestQueue.add(request);
                         return;
                     }
-                    try {
-                        System.out.println("processOut " + this.sc.getRemoteAddress());
-                    } catch (IOException e) {
-                        System.out.println("pouet");
-                    }
                     bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
             }
@@ -565,10 +568,6 @@ public class ServerChatFusion {
          */
         private void updateInterestOps() {
             int ops = 0;
-            System.out.println(key);
-            if (key.isConnectable()) {
-                ops |= SelectionKey.OP_CONNECT;
-            }
 
             if (!closed && bufferIn.hasRemaining()) {
                 ops |= SelectionKey.OP_READ;
@@ -582,8 +581,6 @@ public class ServerChatFusion {
                 silentlyClose();
                 return;
             }
-            System.out.println(key);
-            System.out.println(ops);
 
             key.interestOps(ops);
         }
@@ -630,16 +627,16 @@ public class ServerChatFusion {
          */
         private void doWrite() throws IOException {
             activeSinceLastTimeoutCheck = true;
-            System.out.println(bufferOut);
             sc.write(bufferOut.flip());
-            System.out.println(bufferOut);
             bufferOut.compact();
             updateInterestOps();
         }
 
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
-            key.interestOps(SelectionKey.OP_WRITE);
+            String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+            server.leader.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
+            updateInterestOps();
         }
 
         private enum RequestState {
