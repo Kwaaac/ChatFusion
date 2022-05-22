@@ -371,6 +371,31 @@ public class ServerChatFusion {
                     logger.info("Fusion denied !");
                 }
 
+                case FUSION_INIT_OK -> {
+                    var serverStatus = stringReader.process(bufferIn, 100);
+                    switch (serverStatus) {
+                        case DONE -> {
+                            var otherServer = stringReader.get();
+                            stringReader.reset();
+                            var result = otherServer.compareTo(server.serverName);
+                            if(result == 0) {
+                                logger.severe("Error : same server name !");
+                            }
+                            if (result < 0) {
+                                server.setLeader((Context) key.attachment());
+                                for(var key : server.serverConnected.keySet()) {
+                                    ((Context) key.attachment()).queueRequest(RequestFactory.);
+                                }
+                            }
+                        }
+                        case ERROR -> {
+                            logger.severe("Error server fusion");
+                            return;
+                        }
+                        case REFILL -> {return;}
+                    }
+                }
+
                 case FUSION_INIT -> {
                     if (!server.isLeader()) {
                         ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));

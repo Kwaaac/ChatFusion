@@ -118,4 +118,8 @@ public class RequestFactory {
     public static Request fusionInitForward(InetSocketAddress address) {
         return new Request(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
     }
+
+    public static Request fusionMerge() {
+        return new Request(OpCode.FUSION_MERGE, )
+    }
 }
