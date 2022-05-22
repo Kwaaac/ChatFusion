@@ -1,9 +1,9 @@
 package main.java.reader;
 
+import main.java.BufferSerializable;
 import main.java.OpCode;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 
 /**
  * Record representing a request, a request has an opcode defining the kind of request and a buffer containing the request information
@@ -13,21 +13,15 @@ import java.nio.charset.Charset;
  * @param code
  * @param buffer
  */
-public record Request(OpCode code, ByteBuffer buffer) {
+public record Request(OpCode code, ByteBuffer buffer) implements BufferSerializable {
 
-    /**
-     * @return In bytes, the length of the request
-     */
-    public int length() {
+    @Override
+    public int bufferLength() {
         return Integer.BYTES + buffer().remaining();
     }
 
-    /**
-     * encode the request into a ByteBuffer, the buffer is in read mode
-     *
-     * @return ByteBuffer containing the request in read mode
-     */
+    @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(length()).putInt(code.getOpCode()).put(buffer).flip();
+        return ByteBuffer.allocate(bufferLength()).putInt(code.getOpCode()).put(buffer).flip();
     }
 }

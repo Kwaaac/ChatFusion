@@ -12,35 +12,31 @@ public class RequestFactory {
     private static final Charset UTF8 = StandardCharsets.UTF_8;
 
     /**
-     * //TODO
+     * TODO
      *
      * @return
      */
     public static Request loginAnonymous(String login) {
-        var loginLength = login.getBytes(UTF8).length;
-        var buffer = ByteBuffer.allocate(loginLength + Integer.BYTES);
-        buffer.putInt(loginLength).put(UTF8.encode(login));
-
-        return new Request(OpCode.LOGIN_ANONYMOUS, buffer.flip());
+        return new Request(OpCode.LOGIN_ANONYMOUS, new StringChatFusion(login).encode());
     }
 
     /**
-     * //TODO
+     * TODO
      *
      * @return
      */
     public static Request loginPassword(String login, String password) {
-        var loginLength = login.getBytes(UTF8).length;
-        var pwdLength = password.getBytes(UTF8).length;
+        var strLogin = new StringChatFusion(login);
+        var strPassword = new StringChatFusion(password);
 
-        var buffer = ByteBuffer.allocate(Integer.BYTES * 2 + loginLength + pwdLength);
-        buffer.putInt(loginLength).put(UTF8.encode(login)).putInt(pwdLength).put(UTF8.encode(password));
+        var buffer = ByteBuffer.allocate(strLogin.bufferLength() + strPassword.bufferLength());
+        buffer.put(strLogin.encode()).put(strPassword.encode());
 
         return new Request(OpCode.LOGIN_PASSWORD, buffer.flip());
     }
 
     /**
-     * //TODO
+     * TODO
      *
      * @return
      */
@@ -49,23 +45,27 @@ public class RequestFactory {
     }
 
     /**
-     * //TODO
+     * TODO
      *
      * @return
      */
     public static Request loginAccepted(String serverName) {
-        var serverNameLength = serverName.getBytes(UTF8).length;
-        var buffer = ByteBuffer.allocate(serverNameLength + Integer.BYTES);
-        buffer.putInt(serverNameLength).put(UTF8.encode(serverName));
-
-        return new Request(OpCode.LOGIN_ACCEPTED, buffer.flip());
+        return new Request(OpCode.LOGIN_ACCEPTED, new StringChatFusion(serverName).encode());
     }
 
-
+    /**
+     * TODO
+     *
+     * @param serverName
+     * @param message
+     * @return
+     */
     public static Request publicMessage(String serverName, Message message) {
-        var serverNameLength = serverName.getBytes(UTF8).length;
-        var buffer = ByteBuffer.allocate(serverNameLength + Integer.BYTES + message.length(UTF8));
-        buffer.putInt(serverNameLength).put(UTF8.encode(serverName)).put(message.encode(UTF8));
+        var strServerName = new StringChatFusion(serverName);
+
+        var buffer = ByteBuffer.allocate(strServerName.bufferLength() + message.bufferLength());
+
+        buffer.put(strServerName.encode()).put(message.encode());
 
         return new Request(OpCode.MESSAGE, buffer.flip());
     }

@@ -31,6 +31,7 @@ public class ServerChatFusion {
     private final StateController stateController = new StateController();
     private final HashMap<String, SelectionKey> clientConnected = new HashMap<>();
     private final HashMap<SelectionKey, String> serverConnected = new HashMap<>();
+    private final FusionState fusionState = FusionState.IDLE;
     private Context leader;
 
     public ServerChatFusion(String serverName, InetSocketAddress socketAddress) throws IOException {
@@ -91,6 +92,9 @@ public class ServerChatFusion {
                     case "SHUTDOWNNOW" -> {
                         stateController.updateState(State.SHUTDOWN);
                         selector.wakeup();
+                    }
+                    case String msgString && msgString.startsWith("FUSION") -> {
+                        System.out.println("OUAIS FUSION !");
                     }
                     default -> {
                     }
@@ -202,6 +206,10 @@ public class ServerChatFusion {
         WORKING, STOP_ACCEPTING, SHUTDOWN
     }
 
+    private enum FusionState {
+        PENDING_FUSION, IDLE
+    }
+
     private static class StateController {
         private final Object lock = new Object();
         private State state = State.WORKING;
@@ -224,7 +232,6 @@ public class ServerChatFusion {
         private final SocketChannel sc;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
-
         private final IntReader intReader = new IntReader();
         private final StringReader stringReader = new StringReader();
         private final MessageReader messageReader = new MessageReader();
@@ -360,11 +367,6 @@ public class ServerChatFusion {
          * @param request request containing the opcode of the request and a buffer with the request's content
          */
         public void queueRequest(Request request) {
-            try {
-                System.out.println("Bonjour, je suis " + sc.getRemoteAddress().toString());
-            } catch (IOException e) {
-                System.out.println("awoa");
-            }
             requestQueue.add(request);
             processOut();
             updateInterestOps();
@@ -376,8 +378,15 @@ public class ServerChatFusion {
         private void processOut() {
             while (!requestQueue.isEmpty()) {
                 var request = requestQueue.peek();
-                if (bufferOut.remaining() >= request.length()) {
+                if (bufferOut.remaining() >= request.bufferLength()) {
                     request = requestQueue.pop();
+                    // If there is a fusion request while the server is pending a fusion,
+                    // then it's dismissed waiting for the current fusion to finish by putting
+                    // the request to the last request of the queue
+                    if (request.code() == OpCode.FUSION_INIT && server.fusionState == FusionState.PENDING_FUSION) {
+                        requestQueue.add(request);
+                        return;
+                    }
                     System.out.println(request);
                     bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
@@ -458,6 +467,7 @@ public class ServerChatFusion {
             bufferOut.compact();
             updateInterestOps();
         }
+
 
     }
 

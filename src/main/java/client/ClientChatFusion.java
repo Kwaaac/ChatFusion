@@ -14,6 +14,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Scanner;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -319,7 +320,8 @@ public class ClientChatFusion {
                                 // Message printing process
                                 switch (status) {
                                     case DONE -> {
-                                        System.out.println(messageReader.get().login() + "[" + stringReader.get() + "]: " + messageReader.get().msg());
+                                        var time = LocalDateTime.now();
+                                        System.out.println(messageReader.get().login() + "[" + stringReader.get() + "](" + time.getHour() + "h" + time.getMinute() + "): " + messageReader.get().msg());
                                         messageReader.reset();
                                         stringReader.reset();
                                         watcher = OpCode.IDLE;
@@ -364,7 +366,7 @@ public class ClientChatFusion {
          */
         private void processOut() {
             while (!requestQueue.isEmpty()) {
-                if (bufferOut.remaining() >= requestQueue.peek().length()) {
+                if (bufferOut.remaining() >= requestQueue.peek().bufferLength()) {
                     var poll = requestQueue.poll();
                     var encode = poll.encode();
                     bufferOut.put(encode);
