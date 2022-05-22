@@ -253,6 +253,7 @@ public class ClientChatFusion {
             if (bufferIn.position() == 0) {
                 return;
             }
+
             while (!closed && bufferIn.position() != bufferIn.limit()) {
                 if (watcher == OpCode.IDLE) {
                     var status = intReader.process(bufferIn, 42 /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
@@ -285,7 +286,6 @@ public class ClientChatFusion {
                     silentlyClose();
                     return;
                 }
-
                 switch (watcher) {
                     case LOGIN_ACCEPTED -> {
                         var status = stringReader.process(bufferIn, 100);
@@ -453,7 +453,6 @@ public class ClientChatFusion {
         }
 
         public void doConnect() throws IOException {
-            System.out.println("oui?.");
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             processConnection();
             updateInterestOps();

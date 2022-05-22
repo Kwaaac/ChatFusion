@@ -4,6 +4,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Represent an object serializable in a {@link ByteBuffer}
+ */
 public interface BufferSerializable {
 
     public static final Charset UTF8 = StandardCharsets.UTF_8;

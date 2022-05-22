@@ -85,8 +85,11 @@ public class RequestFactory {
         var strServer = new StringChatFusion(serverName);
         var bufferAddress = InetSocketAddressConverter.encodeInetSocketAddress(address);
         var listServerFusion = Arrays.stream(names).map(StringChatFusion::new).toList();
+        var strLength = strServer.bufferLength();
+        var addressLength = bufferAddress.remaining();
+        var namesLength = listServerFusion.stream().mapToInt(StringChatFusion::bufferLength).sum();
 
-        var buffer = ByteBuffer.allocate(strServer.bufferLength() + bufferAddress.remaining() + Integer.BYTES + (int) listServerFusion.stream().mapToInt(StringChatFusion::bufferLength).count());
+        var buffer = ByteBuffer.allocate(strLength + addressLength + Integer.BYTES + namesLength);
 
         buffer.put(strServer.encode()).put(bufferAddress);
         buffer.putInt(nbMembers);
@@ -119,8 +122,23 @@ public class RequestFactory {
         return new Request(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
     }
 
-    public static Request fusionMerge() {
-        //return new Request(OpCode.FUSION_MERGE, )
-        return null;
+    public static Request fusionMerge(String serverName) {
+        return new Request(OpCode.FUSION_MERGE, new StringChatFusion(serverName).encode());
+    }
+
+    public static Request fusionChangeLeader(InetSocketAddress addressLeader) {
+        return new Request(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
+    }
+
+    public static Request fusionRequest(InetSocketAddress addressServer) {
+        return new Request(OpCode.FUSION_REQUEST, InetSocketAddressConverter.encodeInetSocketAddress(addressServer));
+    }
+
+    public static Request fusionRequestAccepted() {
+        return new Request(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 1));
+    }
+
+    public static Request fusionRequestRefused() {
+        return new Request(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 0));
     }
 }
