@@ -1,6 +1,6 @@
 package test.main.java.reader;
 
-import main.java.reader.InetSocketAdressReader;
+import main.java.reader.InetSocketAddressReader;
 import main.java.reader.Reader;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ class SocketAdressReaderTest {
         bb.put((byte) 255);
         bb.put((byte) 255);
         bb.putInt(8080);
-        var sr = new InetSocketAdressReader();
+        var sr = new InetSocketAddressReader();
         assertEquals(Reader.ProcessStatus.DONE, sr.process(bb, 16));
         assertEquals(expected, sr.get());
     }
