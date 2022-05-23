@@ -167,8 +167,7 @@ public class ServerChatFusion {
     }
 
     private void treatKey(SelectionKey key) {
-        System.out.println("Hey look, I received smth");
-        try {
+                try {
             if (key.isValid() && key.isAcceptable() && stateController.getState() == State.WORKING) {
                 doAccept(key);
                 Helpers.printSelectedKey(key); // for debug
@@ -234,8 +233,7 @@ public class ServerChatFusion {
         }
 
         if (!sender.equals(leader.key)) {
-            System.out.println("send to leader");
-            leader.queueRequest(request);
+                        leader.queueRequest(request);
         }
     }
 
@@ -341,9 +339,7 @@ public class ServerChatFusion {
 
                 newLeader.queueRequest(RequestFactory.fusionMerge(server.serverName));
                 server.fusionState = FusionState.IDLE;
-                System.out.println("leader here");
-                System.out.println(server.leader);
-                server.actualConnection = null;
+                                                server.actualConnection = null;
                 try {
                     server.actualConnectionSocketChannel = SocketChannel.open();
                 } catch (IOException e) {
@@ -361,8 +357,7 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            System.out.println(watcher);
-            while (!closed && bufferIn.hasRemaining()) {
+                        while (!closed && bufferIn.hasRemaining()) {
                 if (watcher == OpCode.IDLE) {
                     var status = intReader.process(bufferIn, 15);
 
@@ -440,8 +435,7 @@ public class ServerChatFusion {
                                     var message = messageReader.get();
                                     messageReader.reset();
                                     var request = RequestFactory.publicMessage(serverSrc, message);
-                                    System.out.println("send broadcast");
-                                    server.broadcast(request, key);
+                                                                        server.broadcast(request, key);
                                     reset();
                                 }
                                 case ERROR -> {
@@ -742,17 +736,14 @@ public class ServerChatFusion {
                 var request = requestQueue.peek();
                 if (bufferOut.remaining() >= request.bufferLength()) {
                     request = requestQueue.pop();
-                    System.out.println(request);
-                    // If there is a fusion request while the server is pending a fusion,
+                                        // If there is a fusion request while the server is pending a fusion,
                     // then it's dismissed waiting for the current fusion to finish by putting
                     // the request to the last request of the queue
                     if (request.code() == OpCode.FUSION_INIT && server.fusionState == FusionState.PENDING_FUSION) {
-                        System.out.println("yetting the request away");
-                        requestQueue.add(request);
+                                                requestQueue.add(request);
                         return;
                     }
-                    System.out.println("sending request");
-                    bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
+                                        bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
             }
         }
@@ -811,11 +802,8 @@ public class ServerChatFusion {
          */
         private void doRead() throws IOException {
             activeSinceLastTimeoutCheck = true;
-            System.out.println("read");
-            System.out.println(bufferIn);
-            closed = (sc.read(bufferIn) == -1);
-            System.out.println(bufferIn);
-            processIn();
+                                    closed = (sc.read(bufferIn) == -1);
+                        processIn();
             updateInterestOps();
         }
 
@@ -829,12 +817,9 @@ public class ServerChatFusion {
          */
         private void doWrite() throws IOException {
             activeSinceLastTimeoutCheck = true;
-            System.out.println("write");
-            System.out.println(bufferOut);
-            sc.write(bufferOut.flip());
+                                    sc.write(bufferOut.flip());
             bufferOut.compact();
-            System.out.println(bufferOut);
-            updateInterestOps();
+                        updateInterestOps();
         }
 
         public void doConnect() throws IOException {
