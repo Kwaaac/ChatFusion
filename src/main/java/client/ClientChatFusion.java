@@ -72,9 +72,9 @@ public class ClientChatFusion {
     private static void usage() {
         System.out.println("""
                 Usages :
-                Login anonymous: java ClientChat [hostname] [post] [login]
+                Login anonymous: java ClientChat [hostname] [port] [login]
                                 
-                Login with password: java ClientChat [hostname] [post] [login] [password]
+                Login with password: java ClientChat [hostname] [port] [login] [password]
                 """);
     }
 
