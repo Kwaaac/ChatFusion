@@ -17,7 +17,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ServerChatFusion {
-    private static final int BUFFER_SIZE = 1024;
+    private static final int BUFFER_SIZE = 4048;
     private static final Logger logger = Logger.getLogger(ServerChatFusion.class.getName());
     private static final long TIMEOUT = 60_000;
     private final String serverName;
@@ -28,7 +28,7 @@ public class ServerChatFusion {
     private final HashMap<SelectionKey, String> clientConnected = new HashMap<>();
     private final ConcurrentHashMap<SelectionKey, String> serverConnected = new ConcurrentHashMap<>();
     private final List<String> memberAddList = new ArrayList<>();
-    private final SocketChannel leaderSocketChannel = SocketChannel.open();
+    private SocketChannel leaderSocketChannel = SocketChannel.open();
     private SocketChannel actualConnectionSocketChannel = SocketChannel.open();
     private boolean isLeader = true;
     private FusionState fusionState = FusionState.IDLE;
@@ -167,6 +167,7 @@ public class ServerChatFusion {
     }
 
     private void treatKey(SelectionKey key) {
+        System.out.println("Hey look, I received smth");
         try {
             if (key.isValid() && key.isAcceptable() && stateController.getState() == State.WORKING) {
                 doAccept(key);
@@ -233,6 +234,7 @@ public class ServerChatFusion {
         }
 
         if (!sender.equals(leader.key)) {
+            System.out.println("send to leader");
             leader.queueRequest(request);
         }
     }
@@ -333,11 +335,22 @@ public class ServerChatFusion {
         private void updateLeader(String serverName, InetSocketAddress serverAddress) {
             if (serverName.compareTo(server.serverName) < 0) {
                 var newLeader = (Context) key.attachment();
+                server.leaderSocketChannel = server.actualConnectionSocketChannel;
                 server.setLeader(newLeader);
                 server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(serverAddress)));
 
                 newLeader.queueRequest(RequestFactory.fusionMerge(server.serverName));
                 server.fusionState = FusionState.IDLE;
+                System.out.println("leader here");
+                System.out.println(server.leader);
+                server.actualConnection = null;
+                try {
+                    server.actualConnectionSocketChannel = SocketChannel.open();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            } else {
+                server.serverConnected.put(key, serverSrc);
             }
         }
 
@@ -348,272 +361,288 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            if (watcher == OpCode.IDLE) {
-                var status = intReader.process(bufferIn, 15);
+            System.out.println(watcher);
+            while (!closed && bufferIn.hasRemaining()) {
+                if (watcher == OpCode.IDLE) {
+                    var status = intReader.process(bufferIn, 15);
 
-                switch (status) {
-                    case DONE -> {
-                        var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
-                        if (optionalWatcher.isPresent()) {
-                            watcher = optionalWatcher.get();
-                            intReader.reset();
-                        } else
-                            // Close the connection if it sent a wrong OpCode
-                            silentlyClose();
-
-                    }
-                    case ERROR -> silentlyClose();
-
-                    case REFILL -> {
-                        return;
-                    }
-                }
-            }
-
-            switch (watcher) {
-                case LOGIN_ANONYMOUS, LOGIN_PASSWORD -> {
-                    var status = stringReader.process(bufferIn, 30);
                     switch (status) {
                         case DONE -> {
-                            var login = stringReader.get();
-                            stringReader.reset();
+                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
+                            if (optionalWatcher.isPresent()) {
+                                watcher = optionalWatcher.get();
+                                intReader.reset();
+                            } else
+                                // Close the connection if it sent a wrong OpCode
+                                silentlyClose();
 
-                            server.addClient(login, key);
-                            reset();
                         }
                         case ERROR -> {
-                            queueRequest(RequestFactory.loginRefused());
-                            reset();
+                            silentlyClose();
+                            return;
                         }
+
                         case REFILL -> {
+                            return;
                         }
                     }
                 }
 
-                case MESSAGE -> {
-                    /* Fetch server name*/
-                    if (requestState == RequestState.ANYTHING) {
-                        var serverStatus = stringReader.process(bufferIn, 100);
-                        switch (serverStatus) {
+                switch (watcher) {
+                    case LOGIN_ANONYMOUS, LOGIN_PASSWORD -> {
+                        var status = stringReader.process(bufferIn, 30);
+                        switch (status) {
                             case DONE -> {
-                                serverSrc = stringReader.get();
+                                var login = stringReader.get();
                                 stringReader.reset();
-                                requestState = RequestState.LOGIN_SRC;
+
+                                server.addClient(login, key);
+                                reset();
                             }
                             case ERROR -> {
-                                /*Message ignored*/
-                                stringReader.reset();
+                                queueRequest(RequestFactory.loginRefused());
                                 reset();
                                 return;
                             }
                             case REFILL -> {
                                 return;
-
                             }
                         }
                     }
-                    /* Fetch login & message*/
-                    if (requestState == RequestState.LOGIN_SRC) {
-                        var loginStatus = messageReader.process(bufferIn, 30);
-                        switch (loginStatus) {
-                            case DONE -> {
-                                var message = messageReader.get();
-                                messageReader.reset();
-                                var request = RequestFactory.publicMessage(serverSrc, message);
-                                server.broadcast(request, key);
-                                reset();
-                            }
-                            case ERROR -> {
-                                /*Message ignoré*/
-                                messageReader.reset();
-                                reset();
-                            }
-                            case REFILL -> {
-                            }
-                        }
-                    }
-                }
 
-                case FUSION_INIT -> {
-                    if (!server.isLeader()) {
-                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));
-                        reset();
-                        return;
-                    }
-
-                    if (fusionInit()) return;
-
-                    if (requestState == RequestState.SERVER_NAMES) {
-                        for (; index_members < nbMembers; index_members++) {
-                            var memberStatus = stringReader.process(bufferIn, 30);
-                            switch (memberStatus) {
+                    case MESSAGE -> {
+                        /* Fetch server name*/
+                        if (requestState == RequestState.ANYTHING) {
+                            var serverStatus = stringReader.process(bufferIn, 100);
+                            switch (serverStatus) {
                                 case DONE -> {
-                                    var member = stringReader.get();
-                                    if (server.clientConnected.containsValue(member)) {
-                                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                                        reset();
-                                        return;
-                                    }
+                                    serverSrc = stringReader.get();
                                     stringReader.reset();
-                                    server.memberAddList.add(member);
+                                    requestState = RequestState.LOGIN_SRC;
                                 }
                                 case ERROR -> {
+                                    /*Message ignored*/
                                     stringReader.reset();
                                     reset();
                                     return;
                                 }
-
                                 case REFILL -> {
                                     return;
+
                                 }
                             }
                         }
-
-                        System.out.println("Fusion accepted with: " + serverSrc + ":" + address);
-                        server.memberAddList.add(serverSrc);
-                        String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
-                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
-
-                        updateLeader(serverSrc, address);
-
-                        reset();
-                    }
-                }
-
-                case FUSION_INIT_OK -> {
-                    // This server is the leader
-                    if (fusionInit()) return;
-
-                    if (requestState == RequestState.SERVER_NAMES) {
-                        for (; index_members < nbMembers; index_members++) {
-                            var memberStatus = stringReader.process(bufferIn, 30);
-                            switch (memberStatus) {
+                        /* Fetch login & message*/
+                        if (requestState == RequestState.LOGIN_SRC) {
+                            var loginStatus = messageReader.process(bufferIn, 30);
+                            switch (loginStatus) {
                                 case DONE -> {
-                                    var member = stringReader.get();
-                                    if (server.clientConnected.containsValue(member)) {
-                                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                                        return;
-                                    }
-                                    stringReader.reset();
-                                    server.memberAddList.add(member);
+                                    var message = messageReader.get();
+                                    messageReader.reset();
+                                    var request = RequestFactory.publicMessage(serverSrc, message);
+                                    System.out.println("send broadcast");
+                                    server.broadcast(request, key);
+                                    reset();
                                 }
                                 case ERROR -> {
-                                    watcher = OpCode.IDLE;
-                                    requestState = RequestState.ANYTHING;
-                                    stringReader.reset();
+                                    /*Message ignoré*/
+                                    messageReader.reset();
+                                    reset();
                                     return;
                                 }
-
                                 case REFILL -> {
                                     return;
                                 }
                             }
                         }
-
-                        System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers);
-                        server.memberAddList.add(serverSrc);
-
-                        updateLeader(serverSrc, address);
-
-                        reset();
                     }
-                }
 
-                case FUSION_INIT_KO -> {
-                    server.fusionState = FusionState.IDLE;
-                    logger.info("Fusion denied !");
-                    reset();
-                }
-
-                case FUSION_INIT_FWD -> {
-                    var addressStatus = addressReader.process(bufferIn, 42);
-                    switch (addressStatus) {
-                        case DONE -> {
-                            address = addressReader.get();
-                            addressReader.reset();
-
-                            var host = address.getHostName();
-                            var port = address.getPort();
-                            server.stateController.sendCommand(host + " " + port, server.selector);
+                    case FUSION_INIT -> {
+                        if (!server.isLeader()) {
+                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));
                             reset();
+                            return;
                         }
-                        case ERROR -> {
-                            addressReader.reset();
-                            reset();
-                        }
-                        case REFILL -> {
-                        }
-                    }
-                }
 
-                case FUSION_REQUEST -> {
-                    if (server.fusionState == FusionState.PENDING_FUSION) {
-                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
-                        reset();
-                        return;
-                    }
+                        if (fusionInit()) return;
 
-                    var addressStatus = addressReader.process(bufferIn, 42);
-                    switch (addressStatus) {
-                        case DONE -> {
-                            address = addressReader.get();
-                            addressReader.reset();
+                        if (requestState == RequestState.SERVER_NAMES) {
+                            for (; index_members < nbMembers; index_members++) {
+                                var memberStatus = stringReader.process(bufferIn, 30);
+                                switch (memberStatus) {
+                                    case DONE -> {
+                                        var member = stringReader.get();
+                                        if (server.clientConnected.containsValue(member)) {
+                                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
+                                            reset();
+                                            return;
+                                        }
+                                        stringReader.reset();
+                                        server.memberAddList.add(member);
+                                    }
+                                    case ERROR -> {
+                                        stringReader.reset();
+                                        reset();
+                                        return;
+                                    }
 
-                            var host = address.getHostName();
-                            var port = address.getPort();
-                            server.stateController.sendCommand(host + " " + port, server.selector);
-                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
-                            reset();
-                        }
-                        case ERROR -> {
-                            addressReader.reset();
-                            reset();
-                        }
-                        case REFILL -> {
-                        }
-                    }
-                }
-
-                case FUSION_REQUEST_RESPONSE -> {
-                    bufferIn.flip();
-                    if (bufferIn.hasRemaining()) {
-                        if (bufferIn.get() == 0) {
-                            System.out.println("Fusion has been refused by the leader");
-                        } else {
-                            System.out.println("Fusion has been accepted by the leader");
-                        }
-                    }
-                    bufferIn.compact();
-                    reset();
-                }
-
-                case FUSION_MERGE -> {
-                    var serverNameStatus = stringReader.process(bufferIn, 100);
-                    switch (serverNameStatus) {
-                        case DONE -> {
-                            var serverName = stringReader.get();
-                            stringReader.reset();
-
-                            // If the server is in the list to be added, we add it to the map
-                            if (server.memberAddList.remove(serverName)) {
-                                server.serverConnected.put(key, serverName);
+                                    case REFILL -> {
+                                        return;
+                                    }
+                                }
                             }
 
-                            if (server.memberAddList.isEmpty()) {
-                                server.fusionState = FusionState.IDLE;
-                            }
+                            System.out.println("Fusion accepted with: " + serverSrc + ":" + address);
+                            server.memberAddList.add(serverSrc);
+                            String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
+
+                            updateLeader(serverSrc, address);
+
                             reset();
-                        }
-                        case ERROR -> {
-                            stringReader.reset();
-                            reset();
-                        }
-                        case REFILL -> {
                         }
                     }
-                }
 
-                default -> throw new UnsupportedOperationException();
+                    case FUSION_INIT_OK -> {
+                        // This server is the leader
+                        if (fusionInit()) return;
+
+                        if (requestState == RequestState.SERVER_NAMES) {
+                            for (; index_members < nbMembers; index_members++) {
+                                var memberStatus = stringReader.process(bufferIn, 30);
+                                switch (memberStatus) {
+                                    case DONE -> {
+                                        var member = stringReader.get();
+                                        if (server.clientConnected.containsValue(member)) {
+                                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
+                                            return;
+                                        }
+                                        stringReader.reset();
+                                        server.memberAddList.add(member);
+                                    }
+                                    case ERROR -> {
+                                        watcher = OpCode.IDLE;
+                                        requestState = RequestState.ANYTHING;
+                                        stringReader.reset();
+                                        return;
+                                    }
+
+                                    case REFILL -> {
+                                        return;
+                                    }
+                                }
+                            }
+
+                            System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers);
+
+                            updateLeader(serverSrc, address);
+
+                            reset();
+                        }
+                    }
+
+                    case FUSION_INIT_KO -> {
+                        server.fusionState = FusionState.IDLE;
+                        logger.info("Fusion denied !");
+                        reset();
+                    }
+
+                    case FUSION_INIT_FWD -> {
+                        var addressStatus = addressReader.process(bufferIn, 42);
+                        switch (addressStatus) {
+                            case DONE -> {
+                                address = addressReader.get();
+                                addressReader.reset();
+
+                                var host = address.getHostName();
+                                var port = address.getPort();
+                                server.stateController.sendCommand(host + " " + port, server.selector);
+                                reset();
+                            }
+                            case ERROR -> {
+                                addressReader.reset();
+                                reset();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
+                        }
+                    }
+
+                    case FUSION_REQUEST -> {
+                        if (server.fusionState == FusionState.PENDING_FUSION) {
+                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
+                            reset();
+                            return;
+                        }
+
+                        var addressStatus = addressReader.process(bufferIn, 42);
+                        switch (addressStatus) {
+                            case DONE -> {
+                                address = addressReader.get();
+                                addressReader.reset();
+
+                                var host = address.getHostName();
+                                var port = address.getPort();
+                                server.stateController.sendCommand(host + " " + port, server.selector);
+                                ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
+                                reset();
+                            }
+                            case ERROR -> {
+                                addressReader.reset();
+                                reset();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
+                        }
+                    }
+
+                    case FUSION_REQUEST_RESPONSE -> {
+                        bufferIn.flip();
+                        if (bufferIn.hasRemaining()) {
+                            if (bufferIn.get() == 0) {
+                                System.out.println("Fusion has been refused by the leader");
+                            } else {
+                                System.out.println("Fusion has been accepted by the leader");
+                            }
+                        }
+                        bufferIn.compact();
+                        reset();
+                    }
+
+                    case FUSION_MERGE -> {
+                        var serverNameStatus = stringReader.process(bufferIn, 100);
+                        switch (serverNameStatus) {
+                            case DONE -> {
+                                var serverName = stringReader.get();
+                                stringReader.reset();
+
+                                // If the server is in the list to be added, we add it to the map
+                                if (server.memberAddList.remove(serverName)) {
+                                    server.serverConnected.put(key, serverName);
+                                }
+
+                                if (server.memberAddList.isEmpty()) {
+                                    server.fusionState = FusionState.IDLE;
+                                }
+                                reset();
+                            }
+                            case ERROR -> {
+                                stringReader.reset();
+                                reset();
+                                return;
+                            }
+                            case REFILL -> {
+                                return;
+                            }
+                        }
+                    }
+
+                    default -> throw new UnsupportedOperationException();
+                }
             }
         }
 
@@ -713,13 +742,16 @@ public class ServerChatFusion {
                 var request = requestQueue.peek();
                 if (bufferOut.remaining() >= request.bufferLength()) {
                     request = requestQueue.pop();
+                    System.out.println(request);
                     // If there is a fusion request while the server is pending a fusion,
                     // then it's dismissed waiting for the current fusion to finish by putting
                     // the request to the last request of the queue
                     if (request.code() == OpCode.FUSION_INIT && server.fusionState == FusionState.PENDING_FUSION) {
+                        System.out.println("yetting the request away");
                         requestQueue.add(request);
                         return;
                     }
+                    System.out.println("sending request");
                     bufferOut.putInt(request.code().getOpCode()).put(request.buffer().clear());
                 }
             }
@@ -779,7 +811,10 @@ public class ServerChatFusion {
          */
         private void doRead() throws IOException {
             activeSinceLastTimeoutCheck = true;
+            System.out.println("read");
+            System.out.println(bufferIn);
             closed = (sc.read(bufferIn) == -1);
+            System.out.println(bufferIn);
             processIn();
             updateInterestOps();
         }
@@ -794,8 +829,11 @@ public class ServerChatFusion {
          */
         private void doWrite() throws IOException {
             activeSinceLastTimeoutCheck = true;
+            System.out.println("write");
+            System.out.println(bufferOut);
             sc.write(bufferOut.flip());
             bufferOut.compact();
+            System.out.println(bufferOut);
             updateInterestOps();
         }
 
