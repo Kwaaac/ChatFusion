@@ -71,19 +71,19 @@ public class InetSocketAddressReader implements Reader<InetSocketAddress> {
                 this.state = State.WAIT_PORT;
 
                 // Parsing of the IP adress
-                StringJoiner sb;
+                StringJoiner sj;
                 if (size == 4) {
-                    sb = new StringJoiner(".");
+                    sj = new StringJoiner(".");
                     for (int i = 0; i < size; i++) {
-                        sb.add((addressBuffer.get() & 0xFF) + "");
+                        sj.add((addressBuffer.get() & 0xFF) + "");
                     }
                 } else {
-                    sb = new StringJoiner(":");
+                    sj = new StringJoiner(":");
                     for (int i = 0; i < size; i++) {
-                        sb.add((addressBuffer.get() & 0xFF) + (addressBuffer.get() & 0xFF) + "");
+                        sj.add((addressBuffer.get() & 0xFF) + (addressBuffer.get() & 0xFF) + "");
                     }
                 }
-                hostname = sb.toString();
+                hostname = sj.toString();
             }
         }
 
