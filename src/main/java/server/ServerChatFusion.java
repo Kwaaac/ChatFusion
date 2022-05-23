@@ -57,16 +57,7 @@ public class ServerChatFusion {
             usage();
             return;
         }
-
-        var server = new ServerChatFusion(args[0], new InetSocketAddress("127.0.0.1", Integer.parseInt(args[1])));
-
-        var keySelf = server.leaderSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
-        server.leader = new Context(server, keySelf);
-        keySelf.attach(server.leader);
-
-        System.out.println(server.serverSocketChannel.getLocalAddress());
-
-        server.launch();
+        new ServerChatFusion(args[0], new InetSocketAddress("127.0.0.1", Integer.parseInt(args[1]))).launch();
     }
 
     private static void usage() {
@@ -117,6 +108,7 @@ public class ServerChatFusion {
     }
 
     public void launch() throws IOException {
+        System.out.println(serverSocketChannel.getLocalAddress());
         serverSocketChannel.configureBlocking(false);
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
         console.start();
