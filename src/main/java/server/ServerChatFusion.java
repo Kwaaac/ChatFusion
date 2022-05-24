@@ -33,6 +33,8 @@ public class ServerChatFusion {
     private boolean isLeader = true;
     private FusionState fusionState = FusionState.IDLE;
     private Context leader;
+
+    private InetSocketAddress leaderAddress;
     private Context actualConnection;
 
     public ServerChatFusion(String serverName, InetSocketAddress socketAddress) throws IOException {
@@ -145,17 +147,21 @@ public class ServerChatFusion {
             return;
         }
 
-        if (actualConnectionSocketChannel.isConnected()) {
-            actualConnectionSocketChannel.close();
-            actualConnectionSocketChannel = SocketChannel.open();
-            actualConnectionSocketChannel.configureBlocking(false);
+        if (actualConnection != null) {
+            actualConnection.silentlyClose();
         }
+
+        actualConnectionSocketChannel = SocketChannel.open();
+        actualConnectionSocketChannel.configureBlocking(false);
 
         actualConnectionSocketChannel.connect(remoteServer);
 
         var key = actualConnectionSocketChannel.register(selector, SelectionKey.OP_CONNECT);
         actualConnection = new Context(this, key);
         key.attach(actualConnection);
+
+        String[] names = serverConnected.values().stream().toList().toArray(new String[0]);
+        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names));
     }
 
     private void treatKey(SelectionKey key) {
@@ -294,7 +300,6 @@ public class ServerChatFusion {
         private final IntReader intReader = new IntReader();
         private final StringReader stringReader = new StringReader();
         private final MessageReader messageReader = new MessageReader();
-
         private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
@@ -322,24 +327,21 @@ public class ServerChatFusion {
          * @param serverName    given sevrer
          * @param serverAddress address of the given server
          */
-        private void updateLeader(String serverName, InetSocketAddress serverAddress) {
+        private void updateLeader(String serverName, InetSocketAddress serverAddress) throws IOException {
             if (serverName.compareTo(server.serverName) < 0) {
                 var newLeader = (Context) key.attachment();
                 server.leaderSocketChannel = server.actualConnectionSocketChannel;
                 server.setLeader(newLeader);
+                server.leaderAddress = serverAddress;
                 server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(serverAddress)));
-
-                newLeader.queueRequest(RequestFactory.fusionMerge(server.serverName));
+                server.serverConnected.clear();
                 server.fusionState = FusionState.IDLE;
-                server.actualConnection = null;
-                try {
-                    server.actualConnectionSocketChannel = SocketChannel.open();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
             } else {
                 server.serverConnected.put(key, serverSrc);
             }
+            server.actualConnectionSocketChannel = SocketChannel.open();
+            server.actualConnectionSocketChannel.configureBlocking(false);
+            server.actualConnection = null;
         }
 
         /**
@@ -349,7 +351,7 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            while (!closed && bufferIn.hasRemaining()) {
+            while (bufferIn.position() != 0) {
                 if (watcher == OpCode.IDLE) {
                     var status = intReader.process(bufferIn, 15);
 
@@ -375,6 +377,7 @@ public class ServerChatFusion {
                     }
                 }
 
+                System.out.println(watcher);
                 switch (watcher) {
                     case LOGIN_ANONYMOUS, LOGIN_PASSWORD -> {
                         var status = stringReader.process(bufferIn, 30);
@@ -445,7 +448,7 @@ public class ServerChatFusion {
 
                     case FUSION_INIT -> {
                         if (!server.isLeader()) {
-                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward((InetSocketAddress) server.leader.sc.getRemoteAddress()));
+                            ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitForward(server.leaderAddress));
                             reset();
                             return;
                         }
@@ -477,9 +480,8 @@ public class ServerChatFusion {
                                     }
                                 }
                             }
-
                             System.out.println("Fusion accepted with: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
-                            server.memberAddList.add(serverSrc);
+
                             String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
                             ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
 
@@ -519,7 +521,7 @@ public class ServerChatFusion {
                                 }
                             }
 
-                            System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers);
+                            System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
 
                             updateLeader(serverSrc, address);
 
@@ -542,7 +544,18 @@ public class ServerChatFusion {
 
                                 var host = address.getHostName();
                                 var port = address.getPort();
-                                server.stateController.sendCommand(host + " " + port, server.selector);
+
+                                server.actualConnectionSocketChannel = SocketChannel.open();
+                                server.actualConnectionSocketChannel.configureBlocking(false);
+
+                                server.actualConnectionSocketChannel.connect(address);
+
+                                var key = server.actualConnectionSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
+                                server.actualConnection = new Context(server, key);
+                                key.attach(server.actualConnection);
+
+                                String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                                server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
                                 reset();
                             }
                             case ERROR -> {
@@ -623,6 +636,32 @@ public class ServerChatFusion {
                             }
                             case REFILL -> {
                                 return;
+                            }
+                        }
+                    }
+
+                    case FUSION_CHANGE_LEADER -> {
+                        var addressStatus = addressReader.process(bufferIn, 16);
+                        switch (addressStatus) {
+                            case DONE -> {
+                                address = addressReader.get();
+                                addressReader.reset();
+
+                                server.leaderSocketChannel = SocketChannel.open();
+                                server.leaderSocketChannel.configureBlocking(false);
+                                server.leaderSocketChannel.connect(address);
+
+                                var key = server.leaderSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
+                                server.leader = new Context(server, key);
+                                key.attach(server.leader);
+
+                                server.leader.queueRequest(RequestFactory.fusionMerge(server.serverName));
+                            }
+                            case ERROR -> {
+                                addressReader.reset();
+                                reset();
+                            }
+                            case REFILL -> {
                             }
                         }
                     }
@@ -724,6 +763,7 @@ public class ServerChatFusion {
          * Try to fill bufferOut from the message queue
          */
         private void processOut() {
+
             while (!requestQueue.isEmpty()) {
                 var request = requestQueue.peek();
                 if (bufferOut.remaining() >= request.bufferLength()) {
@@ -750,6 +790,9 @@ public class ServerChatFusion {
          */
         private void updateInterestOps() {
             int ops = 0;
+            if (key.interestOps() == SelectionKey.OP_CONNECT) {
+                ops |= SelectionKey.OP_CONNECT;
+            }
 
             if (!closed && bufferIn.hasRemaining()) {
                 ops |= SelectionKey.OP_READ;
@@ -816,9 +859,6 @@ public class ServerChatFusion {
 
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
-
-            String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
-            server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
             updateInterestOps();
         }
 
