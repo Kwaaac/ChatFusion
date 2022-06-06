@@ -178,7 +178,7 @@ public class ClientChatFusion {
         private final String login;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
-        private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
+        private final ArrayDeque<RecordRequest> requestQueue = new ArrayDeque<>();
         private final MessageReader messageReader = new MessageReader();
         private final StringReader stringReader = new StringReader();
         private final IntReader intReader = new IntReader();
@@ -355,7 +355,7 @@ public class ClientChatFusion {
         /**
          * Add a request to the request queue, tries to fill bufferOut and updateInterestOps
          */
-        private void queueRequest(Request request) {
+        private void queueRequest(RecordRequest request) {
             requestQueue.add(request);
             processOut();
             updateInterestOps();

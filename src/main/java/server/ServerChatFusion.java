@@ -2,7 +2,9 @@ package main.java.server;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
+import main.java.Utils.StringChatFusion;
 import main.java.reader.*;
+import main.java.request.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -223,7 +225,7 @@ public class ServerChatFusion {
      *
      * @param request The request to broadcast to every client
      */
-    private void broadcast(Request request, SelectionKey sender) {
+    private void broadcast(RecordRequest request, SelectionKey sender) {
         clientConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
         if (isLeader()) {
             serverConnected.keySet().stream().filter(s -> !s.equals(sender)).map(s -> (Context) s.attachment()).forEach(context -> context.queueRequest(request));
@@ -301,13 +303,12 @@ public class ServerChatFusion {
         private final StringReader stringReader = new StringReader();
         private final MessageReader messageReader = new MessageReader();
         private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
-        private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
+        private final ArrayDeque<RecordRequest> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
         private OpCode watcher = OpCode.IDLE;
         private RequestState requestState = RequestState.ANYTHING;
         private boolean activeSinceLastTimeoutCheck = true;
         private boolean closed = false;
-
         private int index_members;
 
         private int nbMembers;
@@ -376,6 +377,8 @@ public class ServerChatFusion {
                         }
                     }
                 }
+                // Création object de la request
+                Request superRequest = new RequestLoginAnonymous(OpCode.LOGIN_ANONYMOUS, new StringChatFusion("Bob"));
 
                 System.out.println(watcher);
                 switch (watcher) {
@@ -668,6 +671,13 @@ public class ServerChatFusion {
 
                     default -> throw new UnsupportedOperationException();
                 }
+
+                ByteBuffer encodedAnswer = switch (superRequest) {
+                    case RequestLoginAnonymous requestLoginAnonymous -> requestLoginAnonymous.encode();
+                    case RequestMessagePrivate requestMessagePrivate -> null;
+                    case RequestMessagePublic requestMessagePrivate -> null;
+                    case RequestMessageFilePrivate requestMessagePrivate -> null;
+                };
             }
         }
 
@@ -753,7 +763,7 @@ public class ServerChatFusion {
          *
          * @param request request containing the opcode of the request and a buffer with the request's content
          */
-        public void queueRequest(Request request) {
+        public void queueRequest(RecordRequest request) {
             requestQueue.add(request);
             processOut();
             updateInterestOps();

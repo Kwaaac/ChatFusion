@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
  * @param code
  * @param buffer
  */
-public record Request(OpCode code, ByteBuffer buffer) implements BufferSerializable {
+public record RecordRequest(OpCode code, ByteBuffer buffer) implements BufferSerializable {
 
     @Override
     public int bufferLength() {

@@ -1,5 +1,7 @@
 package main.java.reader;
 
+import main.java.BufferSerializable;
+
 import java.nio.ByteBuffer;
 
 public interface Reader<T> {
