@@ -96,9 +96,7 @@ public class RequestFactory {
      * @return
      */
     public static Request fusionInitKO() {
-        // FIXME
-        return null;
-        //return new RecordRequest(OpCode.FUSION_INIT_KO, ByteBuffer.allocate(0));
+        return new RequestFusionInitKO();
     }
 
     public static Request fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
