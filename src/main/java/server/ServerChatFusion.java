@@ -693,13 +693,17 @@ public class ServerChatFusion {
             switch (request) {
                 case RequestLoginAnonymous requestLoginAnonymous ->
                     // We add the client to the connected clients
-                    server.addClient(requestLoginAnonymous.login().string(), key);
-
+                        server.addClient(requestLoginAnonymous.login().string(), key);
                 case RequestLoginPassword requestLoginPassword -> System.out.println("requestLoginPassword");
                 case RequestMessagePublic requestMessagePublic -> System.out.println("requestMessagePublic");
                 case RequestMessagePrivate requestMessagePrivate -> System.out.println("requestMessagePrivate");
                 case RequestMessageFilePrivate requestMessageFilePrivate ->
                         System.out.println("requestMessageFilePrivate");
+
+                default -> { // Unsupported request, we end the connection with the client
+                    logger.severe("Unsupported request:" + request);
+                    silentlyClose();
+                }
             }
         }
 

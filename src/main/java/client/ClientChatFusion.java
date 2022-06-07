@@ -4,7 +4,9 @@ import main.java.OpCode;
 import main.java.Utils.RequestFactory;
 import main.java.Utils.StringChatFusion;
 import main.java.reader.*;
+import main.java.request.Request;
 import main.java.request.Request.ReadingState;
+import main.java.request.RequestLoginAccepted;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -189,8 +191,9 @@ public class ClientChatFusion {
         private boolean closed = false;
         private State state;
         private OpCode watcher = OpCode.IDLE;
+        private ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
 
-        private final ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
+        private Reader<Request> requestReader;
 
         private Context(SelectionKey key, String login) {
             this.key = key;
@@ -253,25 +256,37 @@ public class ClientChatFusion {
          * and after the call
          */
         private void processIn() {
-            while (bufferIn.position() != bufferIn.limit()) {
-                if (watcher == OpCode.IDLE) {
+            while (bufferIn.position() != 0) {
+                if (readingState == ReadingState.WAITING_FOR_REQUEST) {
                     var optionalWatcher = OpCode.getOpCodeFromByte(bufferIn.get());
                     if (optionalWatcher.isPresent()) {
-                        watcher = optionalWatcher.get();
+                        requestReader = optionalWatcher.get().getRequestReader();
+                        readingState = ReadingState.READING_REQUEST;
                     } else {
                         // Close the connection if it sent a wrong OpCode
                         silentlyClose();
                     }
                 }
 
-
-                if (state != State.CONNECTED && watcher != OpCode.LOGIN_ACCEPTED && watcher != OpCode.LOGIN_REFUSED) {
-                    // Server is broken and should send its name before anything
-                    silentlyClose();
-                    return;
+                // Read the request
+                var requestStatus = requestReader.process(bufferIn);
+                switch (requestStatus) {
+                    case DONE -> {
+                        Request request = requestReader.get();
+                        requestHandler(request);
+                        readingState = ReadingState.WAITING_FOR_REQUEST;
+                    }
+                    case REFILL -> {
+                        return;
+                    }
+                    case ERROR -> {
+                        silentlyClose();
+                        logger.severe("Error reading, closing connection");
+                        return;
+                    }
                 }
 
-
+                /*
                 switch (watcher) {
                     case LOGIN_ACCEPTED -> {
                         var status = stringReader.process(bufferIn);
@@ -334,6 +349,23 @@ public class ClientChatFusion {
                         }
                     }
                     default -> watcher = OpCode.IDLE;
+                }
+                */
+            }
+        }
+
+        private void requestHandler(Request request) {
+            switch (request) {
+                case RequestLoginAccepted requestLoginAccepted -> {
+                    if (state != State.CONNECTED) {
+                        state = State.CONNECTED;
+                        System.out.println("\t" + "Connection established with server: " + serverName);
+                    }
+                }
+
+                default -> { // Unsupported request, we end the connection with the client
+                    logger.severe("Unsupported request:" + request);
+                    silentlyClose();
                 }
             }
         }
