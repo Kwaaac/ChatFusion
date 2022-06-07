@@ -1,17 +1,22 @@
 package main.java;
 
+import main.java.reader.Reader;
+import main.java.reader.login.RequestLoginAnonymousReader;
+import main.java.reader.login.RequestLoginPasswordReader;
+import main.java.request.Request;
+
 import java.util.HashMap;
 import java.util.Optional;
 
 public enum OpCode {
-    LOGIN_ANONYMOUS(0), LOGIN_PASSWORD(1), LOGIN_ACCEPTED(2), LOGIN_REFUSED(3),
+    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, null), LOGIN_REFUSED(3, null),
 
-    MESSAGE(4), PRIVATE_MESSAGE(5), FILE_PRIVATE(6),
+    MESSAGE(4, null), PRIVATE_MESSAGE(5, null), FILE_PRIVATE(6, null),
 
-    FUSION_INIT(8), FUSION_INIT_OK(9), FUSION_INIT_KO(10), FUSION_INIT_FWD(11), FUSION_REQUEST(12), FUSION_REQUEST_RESPONSE(13), FUSION_CHANGE_LEADER(14), FUSION_MERGE(15),
+    FUSION_INIT(8, null), FUSION_INIT_OK(9, null), FUSION_INIT_KO(10, null), FUSION_INIT_FWD(11, null), FUSION_REQUEST(12, null), FUSION_REQUEST_RESPONSE(13, null), FUSION_CHANGE_LEADER(14, null), FUSION_MERGE(15, null),
 
     // Idle is used as a placeholder waiting for a new OpCode for clients and server
-    IDLE(-1);
+    IDLE(-1, null);
 
 
     private static final HashMap<Integer, OpCode> codeMap = new HashMap<>();
@@ -23,19 +28,21 @@ public enum OpCode {
     }
 
     private final int opCode;
+    private final Reader<Request> requestReader;
 
 
-    OpCode(int opCode) {
+    OpCode(int opCode, Reader<Request> requestReader) {
         this.opCode = opCode;
+        this.requestReader = requestReader;
     }
 
-    public static Optional<OpCode> getOpCodeFromInt(int opcode) {
-        var conn = codeMap.get(opcode);
+    public static Optional<OpCode> getOpCodeFromByte(byte opcode) {
+        var conn = codeMap.get((int) opcode);
         return conn == null ? Optional.empty() : Optional.of(conn);
     }
 
-    public int getOpCode() {
-        return opCode;
+    public byte getOpCode() {
+        return (byte) opCode;
     }
 
 }
