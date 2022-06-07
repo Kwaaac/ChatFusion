@@ -365,7 +365,9 @@ public class ServerChatFusion {
          */
         private void processIn() throws IOException {
             if (readingState == ReadingState.WAITING_FOR_REQUEST) {
+                bufferIn.flip();
                 var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
+                bufferIn.compact();
                 if (optionalOpCode.isPresent()) {
                     requestReader = optionalOpCode.get().getRequestReader();
                     readingState = ReadingState.READING_REQUEST;
