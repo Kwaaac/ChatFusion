@@ -8,6 +8,7 @@ import main.java.reader.fusion.RequestFusionRequestReader;
 import main.java.reader.login.RequestLoginAcceptedReader;
 import main.java.reader.login.RequestLoginAnonymousReader;
 import main.java.reader.login.RequestLoginPasswordReader;
+import main.java.reader.login.RequestLoginRefusedReader;
 import main.java.reader.message.RequestMessagePublicReader;
 import main.java.request.Request;
 
@@ -15,7 +16,7 @@ import java.util.HashMap;
 import java.util.Optional;
 
 public enum OpCode {
-    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, new RequestLoginAcceptedReader()), LOGIN_REFUSED(3, null),
+    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, new RequestLoginAcceptedReader()), LOGIN_REFUSED(3, new RequestLoginRefusedReader()),
 
     MESSAGE(4, new RequestMessagePublicReader()), PRIVATE_MESSAGE(5, null), FILE_PRIVATE(6, null),
 

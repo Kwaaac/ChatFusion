@@ -9,6 +9,7 @@ import main.java.reader.StringReader;
 import main.java.request.Request;
 import main.java.request.Request.ReadingState;
 import main.java.request.RequestLoginAccepted;
+import main.java.request.RequestLoginRefused;
 import main.java.request.RequestMessagePublic;
 
 import java.io.IOException;
@@ -365,6 +366,11 @@ public class ClientChatFusion {
                         System.out.println("\t" + "Connection established with server: " + serverName);
                     }
                 }
+                case RequestLoginRefused requestLoginRefused -> {
+                    System.out.println("Connexion refused");
+                    silentlyClose();
+                }
+
                 case RequestMessagePublic requestMessagePublic -> {
                     // Print Message with login, server, time, and the content
                     var server = requestMessagePublic.serverName();
