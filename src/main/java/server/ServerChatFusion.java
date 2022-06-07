@@ -748,6 +748,13 @@ public class ServerChatFusion {
                     server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
                 }
 
+                case RequestFusionRequestResponse requestFusionRequestResponse -> {
+                    if (requestFusionRequestResponse.status() == 0)
+                        System.out.println("Fusion has been refused by the leader");
+                    else
+                        System.out.println("Fusion has been accepted by the leader");
+                }
+
                 case RequestFusionChangeLeader fusionChangeLeader -> {
                     server.leaderSocketChannel = SocketChannel.open();
                     server.leaderSocketChannel.configureBlocking(false);
