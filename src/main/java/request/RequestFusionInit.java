@@ -7,12 +7,12 @@ import main.java.Utils.StringChatFusion;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public record RequestFusionInit(StringChatFusion name, InetIpv4ChatFusion address, int nbMembers,
+public record RequestFusionInit(StringChatFusion serverName, InetIpv4ChatFusion address, int nbMembers,
                                 StringChatFusion... names) implements Request {
     @Override
     public int bufferLength() {
         return 1 // OpCode
-                + name.bufferLength() // serverName
+                + serverName.bufferLength() // serverName
                 + address().bufferLength() // address
                 + Integer.BYTES // nbMembers
                 + Arrays.stream(names).mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers
@@ -20,7 +20,7 @@ public record RequestFusionInit(StringChatFusion name, InetIpv4ChatFusion addres
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
-        buffer.put(getOpCode().getOpCode()).put(name.encode()) // name
+        buffer.put(getOpCode().getOpCode()).put(serverName.encode()) // serverName
                 .put(address.encode()) // address
                 .putInt(nbMembers); // number of members
 

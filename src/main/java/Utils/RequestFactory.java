@@ -72,7 +72,7 @@ public class RequestFactory {
      * @param names      Names of each server in the Mega-Server
      * @return A {@link OpCode#FUSION_INIT} request
      */
-    public static RecordRequest fusionInit(String serverName, InetSocketAddress address, int nbMembers, String... names) {
+    public static Request fusionInit(String serverName, InetSocketAddress address, int nbMembers, String... names) {
         var strServer = new StringChatFusion(serverName);
         var bufferAddress = InetSocketAddressConverter.encodeInetSocketAddress(address);
         var listServerFusion = Arrays.stream(names).map(StringChatFusion::new).toList();
@@ -86,7 +86,8 @@ public class RequestFactory {
         buffer.putInt(nbMembers);
         listServerFusion.stream().map(StringChatFusion::encode).forEach(buffer::put);
 
-        return new RecordRequest(OpCode.FUSION_INIT, buffer.flip());
+        //return new RecordRequest(OpCode.FUSION_INIT, buffer.flip());
+        return null;
     }
 
     /**
@@ -94,13 +95,17 @@ public class RequestFactory {
      *
      * @return
      */
-    public static RecordRequest fusionInitKO() {
-        return new RecordRequest(OpCode.FUSION_INIT_KO, ByteBuffer.allocate(0));
+    public static Request fusionInitKO() {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.FUSION_INIT_KO, ByteBuffer.allocate(0));
     }
 
-    public static RecordRequest fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
-        var requestInit = fusionInit(serverName, address, nbMember, names);
-        return new RecordRequest(OpCode.FUSION_INIT_OK, requestInit.buffer());
+    public static Request fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
+        // FIXME
+        // var requestInit = fusionInit(serverName, address, nbMember, names);
+        // return new RecordRequest(OpCode.FUSION_INIT_OK, requestInit.buffer());
+        return null;
     }
 
     /**

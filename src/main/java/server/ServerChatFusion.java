@@ -1,6 +1,7 @@
 package main.java.server;
 
 import main.java.OpCode;
+import main.java.Utils.RequestFactory;
 import main.java.reader.*;
 import main.java.request.*;
 import main.java.request.Request.ReadingState;
@@ -415,7 +416,7 @@ public class ServerChatFusion {
                     }
 
                     case MESSAGE -> {
-                        // Fetch server name
+                        // Fetch server serverName
                         if (requestState == RequestState.ANYTHING) {
                             var serverStatus = stringReader.process(bufferIn);
                             switch (serverStatus) {
@@ -686,9 +687,10 @@ public class ServerChatFusion {
 
         }
 
-        private void requestHandler(Request request) {
+        private void requestHandler(Request request) throws IOException {
             switch (request) {
-                case RequestLoginAnonymous requestLoginAnonymous -> server.addClient(requestLoginAnonymous.login().string(), key);
+                case RequestLoginAnonymous requestLoginAnonymous ->
+                        server.addClient(requestLoginAnonymous.login().string(), key);
 
                 case RequestLoginPassword requestLoginPassword -> System.out.println("requestLoginPassword");
 
@@ -698,6 +700,20 @@ public class ServerChatFusion {
 
                 case RequestMessageFilePrivate requestMessageFilePrivate ->
                         System.out.println("requestMessageFilePrivate");
+
+                case RequestFusionInit requestFusionInit -> {
+                    if (server.serverConnected.containsValue(requestFusionInit.serverName())) {
+                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
+                        reset();
+                        return;
+                    }
+                    System.out.println("Fusion accepted with: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
+
+                    String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                    ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
+
+                    updateLeader(serverSrc, address);
+                }
 
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);
