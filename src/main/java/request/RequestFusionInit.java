@@ -9,6 +9,17 @@ import java.util.Arrays;
 
 public record RequestFusionInit(StringChatFusion serverName, InetIpv4ChatFusion address, int nbMembers,
                                 StringChatFusion... names) implements Request {
+
+    public RequestFusionInit {
+        if (serverName.size() > 100) {
+            throw new IllegalArgumentException("severName length superior than 100 UTF8 characters");
+        }
+
+        if (nbMembers != names.length) {
+            throw new IllegalArgumentException("nbMembers and number of server given must be identical");
+        }
+    }
+
     @Override
     public int bufferLength() {
         return 1 // OpCode
@@ -17,6 +28,7 @@ public record RequestFusionInit(StringChatFusion serverName, InetIpv4ChatFusion 
                 + Integer.BYTES // nbMembers
                 + Arrays.stream(names).mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers
     }
+
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
