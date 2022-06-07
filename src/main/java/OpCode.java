@@ -1,17 +1,19 @@
 package main.java;
 
 import main.java.reader.Reader;
+import main.java.reader.login.RequestLoginAcceptedReader;
 import main.java.reader.login.RequestLoginAnonymousReader;
 import main.java.reader.login.RequestLoginPasswordReader;
+import main.java.reader.message.RequestMessagePublicReader;
 import main.java.request.Request;
 
 import java.util.HashMap;
 import java.util.Optional;
 
 public enum OpCode {
-    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, null), LOGIN_REFUSED(3, null),
+    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, new RequestLoginAcceptedReader()), LOGIN_REFUSED(3, null),
 
-    MESSAGE(4, null), PRIVATE_MESSAGE(5, null), FILE_PRIVATE(6, null),
+    MESSAGE(4, new RequestMessagePublicReader()), PRIVATE_MESSAGE(5, null), FILE_PRIVATE(6, null),
 
     FUSION_INIT(8, null), FUSION_INIT_OK(9, null), FUSION_INIT_KO(10, null), FUSION_INIT_FWD(11, null), FUSION_REQUEST(12, null), FUSION_REQUEST_RESPONSE(13, null), FUSION_CHANGE_LEADER(14, null), FUSION_MERGE(15, null),
 
