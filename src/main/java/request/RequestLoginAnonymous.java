@@ -5,15 +5,10 @@ import main.java.Utils.StringChatFusion;
 
 import java.nio.ByteBuffer;
 
-public record RequestLoginAnonymous(OpCode code, StringChatFusion login) implements RequestLogin {
+public record RequestLoginAnonymous(StringChatFusion login) implements Request {
     @Override
     public OpCode getOpCode() {
-        return code;
-    }
-
-    @Override
-    public StringChatFusion getLogin() {
-        return login;
+        return OpCode.LOGIN_ANONYMOUS;
     }
 
     @Override
@@ -23,6 +18,6 @@ public record RequestLoginAnonymous(OpCode code, StringChatFusion login) impleme
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put((byte) code.getOpCode()).put(login.encode());
+        return ByteBuffer.allocate(bufferLength()).put((byte) getOpCode().getOpCode()).put(login.encode());
     }
 }

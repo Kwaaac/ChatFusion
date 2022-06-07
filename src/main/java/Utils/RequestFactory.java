@@ -3,6 +3,8 @@ package main.java.Utils;
 import main.java.OpCode;
 import main.java.reader.Message;
 import main.java.reader.RecordRequest;
+import main.java.request.Request;
+import main.java.request.RequestLoginAnonymous;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -18,8 +20,8 @@ public class RequestFactory {
      *
      * @return
      */
-    public static RecordRequest loginAnonymous(String login) {
-        return new RecordRequest(OpCode.LOGIN_ANONYMOUS, new StringChatFusion(login).encode());
+    public static Request loginAnonymous(StringChatFusion login) {
+        return new RequestLoginAnonymous(login);
     }
 
     /**

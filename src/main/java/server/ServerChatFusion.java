@@ -2,9 +2,8 @@ package main.java.server;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
-import main.java.Utils.StringChatFusion;
 import main.java.reader.*;
-import main.java.request.*;
+import main.java.request.Request;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -305,15 +304,16 @@ public class ServerChatFusion {
         private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
         private final ArrayDeque<RecordRequest> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
-        private OpCode watcher = OpCode.IDLE;
+        private final ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
         private RequestState requestState = RequestState.ANYTHING;
         private boolean activeSinceLastTimeoutCheck = true;
         private boolean closed = false;
         private int index_members;
-
         private int nbMembers;
         private String serverSrc;
         private InetSocketAddress address;
+
+        private Reader<Request> requestReader;
 
         private Context(ServerChatFusion server, SelectionKey key) {
             this.key = key;
@@ -352,44 +352,28 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            while (bufferIn.position() != 0) {
-                if (watcher == OpCode.IDLE) {
-                    var status = intReader.process(bufferIn, 15);
+            if (readingState == ReadingState.WAITING_FOR_REQUEST) {
+                var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
 
-                    switch (status) {
-                        case DONE -> {
-                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
-                            if (optionalWatcher.isPresent()) {
-                                watcher = optionalWatcher.get();
-                                intReader.reset();
-                            } else
-                                // Close the connection if it sent a wrong OpCode
-                                silentlyClose();
+                if (optionalOpCode.isPresent()) {
+                    requestReader =
+                    intReader.reset();
+                } else
+                    // Close the connection if it sent a wrong OpCode
+                    silentlyClose();
 
-                        }
-                        case ERROR -> {
-                            silentlyClose();
-                            return;
-                        }
+            }
 
-                        case REFILL -> {
-                            return;
-                        }
-                    }
-                }
-                // Création object de la request
-                Request superRequest = new RequestLoginAnonymous(OpCode.LOGIN_ANONYMOUS, new StringChatFusion("Bob"));
-
-                System.out.println(watcher);
+                /*
                 switch (watcher) {
                     case LOGIN_ANONYMOUS, LOGIN_PASSWORD -> {
-                        var status = stringReader.process(bufferIn, 30);
+                        var reader = new RequestLoginAnonymousReader();
+                        var status = reader.process(bufferIn);
                         switch (status) {
                             case DONE -> {
-                                var login = stringReader.get();
-                                stringReader.reset();
-
-                                server.addClient(login, key);
+                                var request = (RequestLoginAnonymous) reader.get();
+                                // ici on renverrai seulement la request, puis un futur pattern matching gère le cas de cette request en particulier (pas besoin de cast)
+                                server.addClient(request.login().string(), key);
                                 reset();
                             }
                             case ERROR -> {
@@ -404,9 +388,9 @@ public class ServerChatFusion {
                     }
 
                     case MESSAGE -> {
-                        /* Fetch server name*/
+                        // Fetch server name
                         if (requestState == RequestState.ANYTHING) {
-                            var serverStatus = stringReader.process(bufferIn, 100);
+                            var serverStatus = stringReader.process(bufferIn);
                             switch (serverStatus) {
                                 case DONE -> {
                                     serverSrc = stringReader.get();
@@ -414,7 +398,7 @@ public class ServerChatFusion {
                                     requestState = RequestState.LOGIN_SRC;
                                 }
                                 case ERROR -> {
-                                    /*Message ignored*/
+                                    //Message ignored
                                     stringReader.reset();
                                     reset();
                                     return;
@@ -425,9 +409,9 @@ public class ServerChatFusion {
                                 }
                             }
                         }
-                        /* Fetch login & message*/
+                        // Fetch login & message
                         if (requestState == RequestState.LOGIN_SRC) {
-                            var loginStatus = messageReader.process(bufferIn, 30);
+                            var loginStatus = messageReader.process(bufferIn);
                             switch (loginStatus) {
                                 case DONE -> {
                                     var message = messageReader.get();
@@ -437,7 +421,7 @@ public class ServerChatFusion {
                                     reset();
                                 }
                                 case ERROR -> {
-                                    /*Message ignoré*/
+                                    // Message ignored
                                     messageReader.reset();
                                     reset();
                                     return;
@@ -460,7 +444,7 @@ public class ServerChatFusion {
 
                         if (requestState == RequestState.SERVER_NAMES) {
                             for (; index_members < nbMembers; index_members++) {
-                                var memberStatus = stringReader.process(bufferIn, 30);
+                                var memberStatus = stringReader.process(bufferIn);
                                 switch (memberStatus) {
                                     case DONE -> {
                                         var member = stringReader.get();
@@ -500,7 +484,7 @@ public class ServerChatFusion {
 
                         if (requestState == RequestState.SERVER_NAMES) {
                             for (; index_members < nbMembers; index_members++) {
-                                var memberStatus = stringReader.process(bufferIn, 30);
+                                var memberStatus = stringReader.process(bufferIn);
                                 switch (memberStatus) {
                                     case DONE -> {
                                         var member = stringReader.get();
@@ -539,7 +523,7 @@ public class ServerChatFusion {
                     }
 
                     case FUSION_INIT_FWD -> {
-                        var addressStatus = addressReader.process(bufferIn, 42);
+                        var addressStatus = addressReader.process(bufferIn);
                         switch (addressStatus) {
                             case DONE -> {
                                 address = addressReader.get();
@@ -579,7 +563,7 @@ public class ServerChatFusion {
                             return;
                         }
 
-                        var addressStatus = addressReader.process(bufferIn, 42);
+                        var addressStatus = addressReader.process(bufferIn);
                         switch (addressStatus) {
                             case DONE -> {
                                 address = addressReader.get();
@@ -616,7 +600,7 @@ public class ServerChatFusion {
                     }
 
                     case FUSION_MERGE -> {
-                        var serverNameStatus = stringReader.process(bufferIn, 100);
+                        var serverNameStatus = stringReader.process(bufferIn);
                         switch (serverNameStatus) {
                             case DONE -> {
                                 var serverName = stringReader.get();
@@ -644,7 +628,7 @@ public class ServerChatFusion {
                     }
 
                     case FUSION_CHANGE_LEADER -> {
-                        var addressStatus = addressReader.process(bufferIn, 16);
+                        var addressStatus = addressReader.process(bufferIn);
                         switch (addressStatus) {
                             case DONE -> {
                                 address = addressReader.get();
@@ -671,19 +655,13 @@ public class ServerChatFusion {
 
                     default -> throw new UnsupportedOperationException();
                 }
+                */
 
-                ByteBuffer encodedAnswer = switch (superRequest) {
-                    case RequestLoginAnonymous requestLoginAnonymous -> requestLoginAnonymous.encode();
-                    case RequestMessagePrivate requestMessagePrivate -> null;
-                    case RequestMessagePublic requestMessagePrivate -> null;
-                    case RequestMessageFilePrivate requestMessagePrivate -> null;
-                };
-            }
         }
 
         private boolean fusionInit() {
             if (requestState == RequestState.ANYTHING) {
-                var serverStatus = stringReader.process(bufferIn, 100);
+                var serverStatus = stringReader.process(bufferIn);
                 switch (serverStatus) {
                     case DONE -> {
                         serverSrc = stringReader.get();
@@ -708,7 +686,7 @@ public class ServerChatFusion {
             }
 
             if (requestState == RequestState.ADDRESS) {
-                var addressStatus = addressReader.process(bufferIn, 16);
+                var addressStatus = addressReader.process(bufferIn);
                 switch (addressStatus) {
                     case DONE -> {
                         address = addressReader.get();
@@ -729,7 +707,7 @@ public class ServerChatFusion {
 
             if (requestState == RequestState.NB_MEMBERS) {
 
-                var nbMembersStatus = intReader.process(bufferIn, 42);
+                var nbMembersStatus = intReader.process(bufferIn);
                 switch (nbMembersStatus) {
                     case DONE -> {
                         nbMembers = intReader.get();
@@ -756,7 +734,6 @@ public class ServerChatFusion {
             requestState = RequestState.ANYTHING;
             watcher = OpCode.IDLE;
         }
-
 
         /**
          * Add a request to the request queue, tries to fill bufferOut and updateInterestOps
@@ -848,7 +825,9 @@ public class ServerChatFusion {
         private void doRead() throws IOException {
             activeSinceLastTimeoutCheck = true;
             closed = (sc.read(bufferIn) == -1);
-            processIn();
+            if (!closed) {
+                processIn();
+            }
             updateInterestOps();
         }
 
@@ -870,6 +849,10 @@ public class ServerChatFusion {
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             updateInterestOps();
+        }
+
+        private enum ReadingState {
+            READING_REQUEST, WAITING_FOR_REQUEST
         }
 
         private enum RequestState {

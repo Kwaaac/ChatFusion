@@ -1,7 +1,6 @@
 package main.java.request;
 
 import main.java.OpCode;
-import main.java.request.RequestMessage;
 
 import java.nio.ByteBuffer;
 

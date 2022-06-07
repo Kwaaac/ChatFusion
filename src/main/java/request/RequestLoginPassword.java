@@ -5,7 +5,7 @@ import main.java.Utils.StringChatFusion;
 
 import java.nio.ByteBuffer;
 
-public record RequestLoginPassword(OpCode code, StringChatFusion login) implements RequestLogin {
+public record RequestLoginPassword(StringChatFusion login, StringChatFusion password) implements Request {
     @Override
     public int bufferLength() {
         return 1 + login.bufferLength();
@@ -13,16 +13,11 @@ public record RequestLoginPassword(OpCode code, StringChatFusion login) implemen
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put((byte) code.getOpCode()).put(login.encode());
+        return ByteBuffer.allocate(bufferLength()).put((byte) getOpCode().getOpCode()).put(login.encode()).put(password.encode());
     }
 
     @Override
     public OpCode getOpCode() {
-        return code;
-    }
-
-    @Override
-    public StringChatFusion getLogin() {
-        return login;
+        return OpCode.LOGIN_PASSWORD;
     }
 }
