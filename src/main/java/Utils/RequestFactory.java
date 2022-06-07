@@ -1,11 +1,11 @@
 package main.java.Utils;
 
 import main.java.OpCode;
-import main.java.reader.Message;
-import main.java.reader.Request;
+import main.java.request.*;
+import main.java.wrapper.InetIpv4ChatFusion;
+import main.java.wrapper.StringChatFusion;
 
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -19,7 +19,7 @@ public class RequestFactory {
      * @return
      */
     public static Request loginAnonymous(String login) {
-        return new Request(OpCode.LOGIN_ANONYMOUS, new StringChatFusion(login).encode());
+        return new RequestLoginAnonymous(new StringChatFusion(login));
     }
 
     /**
@@ -31,10 +31,7 @@ public class RequestFactory {
         var strLogin = new StringChatFusion(login);
         var strPassword = new StringChatFusion(password);
 
-        var buffer = ByteBuffer.allocate(strLogin.bufferLength() + strPassword.bufferLength());
-        buffer.put(strLogin.encode()).put(strPassword.encode());
-
-        return new Request(OpCode.LOGIN_PASSWORD, buffer.flip());
+        return new RequestLoginPassword(strLogin, strPassword);
     }
 
     /**
@@ -43,7 +40,7 @@ public class RequestFactory {
      * @return
      */
     public static Request loginRefused() {
-        return new Request(OpCode.LOGIN_REFUSED, ByteBuffer.allocate(0));
+        return new RequestLoginRefused();
     }
 
     /**
@@ -52,7 +49,7 @@ public class RequestFactory {
      * @return
      */
     public static Request loginAccepted(String serverName) {
-        return new Request(OpCode.LOGIN_ACCEPTED, new StringChatFusion(serverName).encode());
+        return new RequestLoginAccepted(new StringChatFusion(serverName));
     }
 
     /**
@@ -62,14 +59,22 @@ public class RequestFactory {
      * @param message
      * @return
      */
-    public static Request publicMessage(String serverName, Message message) {
-        var strServerName = new StringChatFusion(serverName);
+    public static Request publicMessage(String serverName, String login, String message) {
+        return new RequestMessagePublic(new StringChatFusion(serverName), new StringChatFusion(login), new StringChatFusion(message));
+    }
 
-        var buffer = ByteBuffer.allocate(strServerName.bufferLength() + message.bufferLength());
-
-        buffer.put(strServerName.encode()).put(message.encode());
-
-        return new Request(OpCode.MESSAGE, buffer.flip());
+    /**
+     * TODO
+     *
+     * @param serverSrc
+     * @param serverDst
+     * @param loginSrc
+     * @param loginDst
+     * @param message
+     * @return
+     */
+    public static Request privateMessage(String serverSrc, String serverDst, String loginSrc, String loginDst, String message) {
+        return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(loginDst), new StringChatFusion(message));
     }
 
     /**
@@ -82,20 +87,11 @@ public class RequestFactory {
      * @return A {@link OpCode#FUSION_INIT} request
      */
     public static Request fusionInit(String serverName, InetSocketAddress address, int nbMembers, String... names) {
-        var strServer = new StringChatFusion(serverName);
-        var bufferAddress = InetSocketAddressConverter.encodeInetSocketAddress(address);
-        var listServerFusion = Arrays.stream(names).map(StringChatFusion::new).toList();
-        var strLength = strServer.bufferLength();
-        var addressLength = bufferAddress.remaining();
-        var namesLength = listServerFusion.stream().mapToInt(StringChatFusion::bufferLength).sum();
+        var scfServerName = new StringChatFusion(serverName);
+        var acfAddress = new InetIpv4ChatFusion(address);
+        var lstNames = Arrays.stream(names).map(StringChatFusion::new).toList();
 
-        var buffer = ByteBuffer.allocate(strLength + addressLength + Integer.BYTES + namesLength);
-
-        buffer.put(strServer.encode()).put(bufferAddress);
-        buffer.putInt(nbMembers);
-        listServerFusion.stream().map(StringChatFusion::encode).forEach(buffer::put);
-
-        return new Request(OpCode.FUSION_INIT, buffer.flip());
+        return new RequestFusionInit(scfServerName, acfAddress, nbMembers, lstNames);
     }
 
     /**
@@ -104,12 +100,11 @@ public class RequestFactory {
      * @return
      */
     public static Request fusionInitKO() {
-        return new Request(OpCode.FUSION_INIT_KO, ByteBuffer.allocate(0));
+        return new RequestFusionInitKO();
     }
 
     public static Request fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
-        var requestInit = fusionInit(serverName, address, nbMember, names);
-        return new Request(OpCode.FUSION_INIT_OK, requestInit.buffer());
+        return new RequestFusionInitOK(new StringChatFusion(serverName), new InetIpv4ChatFusion(address), nbMember, Arrays.stream(names).map(StringChatFusion::new).toList());
     }
 
     /**
@@ -119,26 +114,26 @@ public class RequestFactory {
      * @return
      */
     public static Request fusionInitForward(InetSocketAddress address) {
-        return new Request(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
+        return new RequestFusionInitFWD(new InetIpv4ChatFusion(address));
     }
 
     public static Request fusionMerge(String serverName) {
-        return new Request(OpCode.FUSION_MERGE, new StringChatFusion(serverName).encode());
+        return new RequestFusionMerge(new StringChatFusion(serverName));
     }
 
     public static Request fusionChangeLeader(InetSocketAddress addressLeader) {
-        return new Request(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
+        return new RequestFusionChangeLeader(new InetIpv4ChatFusion(addressLeader));
     }
 
     public static Request fusionRequest(InetSocketAddress addressServer) {
-        return new Request(OpCode.FUSION_REQUEST, InetSocketAddressConverter.encodeInetSocketAddress(addressServer));
+        return new RequestFusionRequest(new InetIpv4ChatFusion(addressServer));
     }
 
     public static Request fusionRequestAccepted() {
-        return new Request(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 1));
+        return new RequestFusionRequestResponse((byte) 1);
     }
 
     public static Request fusionRequestRefused() {
-        return new Request(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 0));
+        return new RequestFusionRequestResponse((byte) 0);
     }
 }

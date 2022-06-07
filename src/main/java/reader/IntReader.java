@@ -9,7 +9,7 @@ public class IntReader implements Reader<Integer> {
     private int value;
 
     @Override
-    public ProcessStatus process(ByteBuffer buffer, int maxValue) {
+    public ProcessStatus process(ByteBuffer buffer) {
         if (state == State.DONE || state == State.ERROR) {
             throw new IllegalStateException();
         }

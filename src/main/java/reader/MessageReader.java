@@ -1,5 +1,7 @@
 package main.java.reader;
 
+import main.java.wrapper.StringChatFusion;
+
 import java.nio.ByteBuffer;
 
 public class MessageReader implements Reader<Message> {
@@ -9,13 +11,13 @@ public class MessageReader implements Reader<Message> {
     private State state = State.WAIT_LOGIN;
 
     @Override
-    public ProcessStatus process(ByteBuffer bb, int maxValue) {
+    public ProcessStatus process(ByteBuffer bb) {
         if (this.state == State.DONE || this.state == State.ERROR) {
             throw new IllegalStateException();
         }
 
         for (; ; ) {
-            var status = stringReader.process(bb, maxValue);
+            var status = stringReader.process(bb);
             switch (status) {
                 case DONE -> {
                     if (state == State.WAIT_LOGIN) {
@@ -46,7 +48,7 @@ public class MessageReader implements Reader<Message> {
         if (this.state != State.DONE) {
             throw new IllegalStateException();
         } else {
-            return new Message(login, msg);
+            return new Message(new StringChatFusion(login), new StringChatFusion((msg)));
         }
     }
 

@@ -1,18 +1,27 @@
 package main.java;
 
+import main.java.reader.Reader;
+import main.java.reader.fusion.*;
+import main.java.reader.login.RequestLoginAcceptedReader;
+import main.java.reader.login.RequestLoginAnonymousReader;
+import main.java.reader.login.RequestLoginPasswordReader;
+import main.java.reader.login.RequestLoginRefusedReader;
+import main.java.reader.message.RequestMessagePrivateReader;
+import main.java.reader.message.RequestMessagePublicReader;
+import main.java.request.Request;
+
 import java.util.HashMap;
 import java.util.Optional;
 
 public enum OpCode {
-    LOGIN_ANONYMOUS(0), LOGIN_PASSWORD(1), LOGIN_ACCEPTED(2), LOGIN_REFUSED(3),
+    LOGIN_ANONYMOUS(0, new RequestLoginAnonymousReader()), LOGIN_PASSWORD(1, new RequestLoginPasswordReader()), LOGIN_ACCEPTED(2, new RequestLoginAcceptedReader()), LOGIN_REFUSED(3, new RequestLoginRefusedReader()),
 
-    MESSAGE(4), PRIVATE_MESSAGE(5), FILE_PRIVATE(6),
+    MESSAGE(4, new RequestMessagePublicReader()), PRIVATE_MESSAGE(5, new RequestMessagePrivateReader()), FILE_PRIVATE(6, null),
 
-    FUSION_INIT(8), FUSION_INIT_OK(9), FUSION_INIT_KO(10), FUSION_INIT_FWD(11), FUSION_REQUEST(12), FUSION_REQUEST_RESPONSE(13), FUSION_CHANGE_LEADER(14), FUSION_MERGE(15),
+    FUSION_INIT(8, new RequestFusionInitReader()), FUSION_INIT_OK(9, new RequestFusionInitOKReader()), FUSION_INIT_KO(10, new RequestFusionInitKOReader()), FUSION_INIT_FWD(11, new RequestFusionFWDReader()), FUSION_REQUEST(12, new RequestFusionRequestReader()), FUSION_REQUEST_RESPONSE(13, new RequestFusionRequestResponseReader()), FUSION_CHANGE_LEADER(14, new RequestFusionChangeLeaderReader()), FUSION_MERGE(15, new RequestFusionMergeReader()),
 
     // Idle is used as a placeholder waiting for a new OpCode for clients and server
-    IDLE(-1);
-
+    IDLE(-1, null);
 
     private static final HashMap<Integer, OpCode> codeMap = new HashMap<>();
 
@@ -23,19 +32,24 @@ public enum OpCode {
     }
 
     private final int opCode;
+    private final Reader<Request> requestReader;
 
-
-    OpCode(int opCode) {
+    OpCode(int opCode, Reader<Request> requestReader) {
         this.opCode = opCode;
+        this.requestReader = requestReader;
     }
 
-    public static Optional<OpCode> getOpCodeFromInt(int opcode) {
-        var conn = codeMap.get(opcode);
+    public static Optional<OpCode> getOpCodeFromByte(byte opcode) {
+        var conn = codeMap.get((int) opcode);
         return conn == null ? Optional.empty() : Optional.of(conn);
     }
 
-    public int getOpCode() {
-        return opCode;
+    public Reader<Request> getRequestReader() {
+        requestReader.reset();
+        return requestReader;
     }
 
+    public byte getOpCode() {
+        return (byte) opCode;
+    }
 }

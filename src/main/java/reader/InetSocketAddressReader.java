@@ -17,18 +17,18 @@ public class InetSocketAddressReader implements Reader<InetSocketAddress> {
     private int port;
 
     @Override
-    public ProcessStatus process(ByteBuffer bb, int maxValue) {
+    public ProcessStatus process(ByteBuffer bb) {
         if (state == State.DONE || state == State.ERROR) {
             throw new IllegalStateException();
         }
 
         if (state == State.WAIT_SIZE) {
-            var status = intReader.process(bb, maxValue);
+            var status = intReader.process(bb);
 
             switch (status) {
                 case DONE -> {
                     size = intReader.get();
-                    if (size != 4 && size != 16 && size > maxValue) {
+                    if (size != 4 && size != 16) {
                         this.state = State.ERROR;
                         return ProcessStatus.ERROR;
                     }
@@ -87,7 +87,7 @@ public class InetSocketAddressReader implements Reader<InetSocketAddress> {
             }
         }
 
-        var status = intReader.process(bb, maxValue);
+        var status = intReader.process(bb);
         switch (status) {
             case DONE -> {
                 port = intReader.get();
