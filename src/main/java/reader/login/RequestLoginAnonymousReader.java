@@ -1,16 +1,15 @@
 package main.java.reader.login;
 
-import main.java.Utils.StringChatFusion;
+import main.java.Utils.RequestFactory;
 import main.java.reader.Reader;
-import main.java.reader.StringChatFusionReader;
+import main.java.reader.StringReader;
 import main.java.request.Request;
-import main.java.request.RequestLoginAnonymous;
 
 import java.nio.ByteBuffer;
 
 public class RequestLoginAnonymousReader implements Reader<Request> {
-    StringChatFusion value;
-    Reader<StringChatFusion> stringReader = new StringChatFusionReader();
+    String login;
+    Reader<String> stringReader = new StringReader();
     private State state = State.WAIT_LOGIN;
 
     @Override
@@ -22,7 +21,7 @@ public class RequestLoginAnonymousReader implements Reader<Request> {
         var status = stringReader.process(bb);
         return switch (status) {
             case DONE -> {
-                value = stringReader.get();
+                login = stringReader.get();
                 state = State.DONE;
                 yield ProcessStatus.DONE;
             }
@@ -36,11 +35,11 @@ public class RequestLoginAnonymousReader implements Reader<Request> {
 
     @Override
     public Request get() {
-        if (state != State.DONE || value == null) {
+        if (state != State.DONE || login == null) {
             throw new IllegalStateException();
         }
         reset();
-        return new RequestLoginAnonymous(value);
+        return RequestFactory.loginAnonymous(login);
     }
 
     @Override
