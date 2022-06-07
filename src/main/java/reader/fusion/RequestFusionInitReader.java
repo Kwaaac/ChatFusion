@@ -66,12 +66,16 @@ public class RequestFusionInitReader implements Reader<Request> {
                 }
 
                 case WAIT_SERVER_NAMES -> {
+                    if(nbMembers == 0){
+                        state = State.DONE;
+                        return ProcessStatus.DONE;
+                    }
                     var serverStatus = stringReader.process(bb);
                     if (serverStatus == ProcessStatus.DONE) {
-                        serverName = stringReader.get();
+                        var serverMemberName = stringReader.get();
                         stringReader.reset();
 
-                        serverNames[index_members++] = serverName;
+                        serverNames[index_members++] = serverMemberName;
                         if (index_members == nbMembers) {
                             state = State.DONE;
                             return ProcessStatus.DONE;

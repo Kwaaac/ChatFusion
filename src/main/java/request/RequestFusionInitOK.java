@@ -19,7 +19,6 @@ public record RequestFusionInitOK(StringChatFusion serverName,
             throw new IllegalArgumentException("nbMembers and number of server given must be identical");
     }
 
-
     @Override
     public int bufferLength() {
         return 1
@@ -32,7 +31,8 @@ public record RequestFusionInitOK(StringChatFusion serverName,
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
-        buffer.put(getOpCode().getOpCode()).put(serverName.encode()) // serverName
+        buffer.put(getOpCode().getOpCode()) // OpCode
+                .put(serverName.encode()) // serverName
                 .put(address.encode()) // address
                 .putInt(nbMembers); // number of members
 

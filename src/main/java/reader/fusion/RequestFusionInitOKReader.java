@@ -66,6 +66,11 @@ public class RequestFusionInitOKReader implements Reader<Request> {
                 }
 
                 case WAIT_SERVER_NAMES -> {
+                    if (nbMembers == 0) {
+                        state = State.DONE;
+                        return ProcessStatus.DONE;
+                    }
+
                     var serverStatus = stringReader.process(bb);
                     if (serverStatus == ProcessStatus.DONE) {
                         serverName = stringReader.get();
@@ -90,7 +95,7 @@ public class RequestFusionInitOKReader implements Reader<Request> {
             throw new IllegalStateException();
         }
         reset();
-        return RequestFactory.fusionInit(serverName, address, nbMembers, serverNames);
+        return RequestFactory.fusionInitOK(serverName, address, nbMembers, serverNames);
     }
 
     @Override

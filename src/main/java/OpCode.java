@@ -23,7 +23,6 @@ public enum OpCode {
     // Idle is used as a placeholder waiting for a new OpCode for clients and server
     IDLE(-1, null);
 
-
     private static final HashMap<Integer, OpCode> codeMap = new HashMap<>();
 
     static {

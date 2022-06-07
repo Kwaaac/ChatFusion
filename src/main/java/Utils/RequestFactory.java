@@ -104,12 +104,7 @@ public class RequestFactory {
     }
 
     public static Request fusionInitOK(String serverName, InetSocketAddress address, int nbMember, String... names) {
-        return new RequestFusionInitOK(
-                new StringChatFusion(serverName),
-                new InetIpv4ChatFusion(address),
-                nbMember,
-                Arrays.stream(names).map(StringChatFusion::new).toList()
-        );
+        return new RequestFusionInitOK(new StringChatFusion(serverName), new InetIpv4ChatFusion(address), nbMember, Arrays.stream(names).map(StringChatFusion::new).toList());
     }
 
     /**

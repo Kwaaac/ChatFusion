@@ -33,7 +33,8 @@ public record RequestFusionInit(StringChatFusion serverName, InetIpv4ChatFusion 
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
-        buffer.put(getOpCode().getOpCode()).put(serverName.encode()) // serverName
+        buffer.put(getOpCode().getOpCode()) // OpCode
+                .put(serverName.encode()) // serverName
                 .put(address.encode()) // address
                 .putInt(nbMembers); // number of members
 

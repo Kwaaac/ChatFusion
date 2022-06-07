@@ -65,7 +65,7 @@ public class RequestMessagePublicReader implements Reader<Request> {
 
     @Override
     public void reset() {
-        this.state = State.WAIT_LOGIN;
+        this.state = State.WAIT_SERVER_NAME;
         stringReader.reset();
     }
 

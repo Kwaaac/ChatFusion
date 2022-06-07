@@ -1,8 +1,9 @@
 package main.java.server;
 
+import jdk.swing.interop.SwingInterOpUtils;
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
-import main.java.reader.*;
+import main.java.reader.Reader;
 import main.java.request.*;
 import main.java.request.Request.ReadingState;
 
@@ -144,13 +145,11 @@ public class ServerChatFusion {
 
         var commands = msg.split(" ");
         var remoteServer = new InetSocketAddress(commands[0], Integer.parseInt(commands[1]));
-        // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-        /*
         if (!isLeader()) {
             leader.queueRequest(RequestFactory.fusionRequest(remoteServer));
             return;
         }
-        */
+
         if (actualConnection != null) {
             actualConnection.silentlyClose();
         }
@@ -165,10 +164,10 @@ public class ServerChatFusion {
         key.attach(actualConnection);
 
         String[] names = serverConnected.values().stream().toList().toArray(new String[0]);
-        // FIXME Passer le RequestFactory avec un Request et non un RecordRequest (qui va disparaitre)
-        /*
-        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names));
-        */
+        System.out.println("serverName = " + serverName);
+        var request = RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names);
+        System.out.println("request = " + request);
+        ((Context) key.attachment()).queueRequest(request);
     }
 
     private void treatKey(SelectionKey key) {
@@ -243,7 +242,7 @@ public class ServerChatFusion {
     }
 
     public void addClient(String login, SelectionKey key) {
-        var refused = login.getBytes(StandardCharsets.UTF_8).length <= 30;
+        var refused = login.getBytes(StandardCharsets.UTF_8).length > 30;
         var client = (Context) key.attachment();
         if (!refused) {
             refused = (clientConnected.putIfAbsent(key, login) != null);
@@ -306,21 +305,11 @@ public class ServerChatFusion {
         private final SocketChannel sc;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
-        private final IntReader intReader = new IntReader();
-        private final StringReader stringReader = new StringReader();
-        private final MessageReader messageReader = new MessageReader();
-        private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
         private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
         private ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
-        private RequestState requestState = RequestState.ANYTHING;
         private boolean activeSinceLastTimeoutCheck = true;
         private boolean closed = false;
-        private int index_members;
-        private int nbMembers;
-        private String serverSrc;
-        private InetSocketAddress address;
-
         private Reader<Request> requestReader;
 
         private Context(ServerChatFusion server, SelectionKey key) {
@@ -333,22 +322,24 @@ public class ServerChatFusion {
          * If the given server becomes the new leader, then update every client and the leader of the actual server
          * Otherwise, do nothing
          *
-         * @param serverName    given sevrer
-         * @param serverAddress address of the given server
+         * @param otherServerName    given sevrer
+         * @param otherServerAddress address of the given server
          */
-        private void updateLeader(String serverName, InetSocketAddress serverAddress) throws IOException {
-            if (serverName.compareTo(server.serverName) < 0) {
+        private void updateLeader(String otherServerName, InetSocketAddress otherServerAddress) throws IOException {
+            if (otherServerName.compareTo(server.serverName) < 0) {
                 var newLeader = (Context) key.attachment();
                 server.leaderSocketChannel = server.actualConnectionSocketChannel;
                 server.setLeader(newLeader);
-                server.leaderAddress = serverAddress;
-                // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-                // server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(serverAddress)));
+                server.leaderAddress = otherServerAddress;
+                server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(otherServerAddress)));
                 server.serverConnected.clear();
                 server.fusionState = FusionState.IDLE;
+                System.out.println("We change leader to: " + otherServerName);
             } else {
-                server.serverConnected.put(key, serverSrc);
+                server.serverConnected.put(key, otherServerName);
+                System.out.println("We stay leader");
             }
+
             server.actualConnectionSocketChannel = SocketChannel.open();
             server.actualConnectionSocketChannel.configureBlocking(false);
             server.actualConnection = null;
@@ -362,33 +353,26 @@ public class ServerChatFusion {
          * after the call
          */
         private void processIn() throws IOException {
-            if (readingState == ReadingState.WAITING_FOR_REQUEST) {
-                bufferIn.flip();
-                var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
-                bufferIn.compact();
-                if (optionalOpCode.isPresent()) {
-                    requestReader = optionalOpCode.get().getRequestReader();
-                    readingState = ReadingState.READING_REQUEST;
-                } else {
-                    // Close the connection if it sent a wrong OpCode
-                    silentlyClose();
-                    logger.severe("Wrong opCode were read, closing connection");
+            while (bufferIn.position() != 0) {
+                if (readingState == ReadingState.WAITING_FOR_REQUEST) {
+                    byteOpCodeReader();
                 }
-            }
 
-            // Read the request
-            var status = requestReader.process(bufferIn);
-            switch (status) {
-                case DONE -> {
-                    Request request = requestReader.get();
-                    requestHandler(request);
-                    readingState = ReadingState.WAITING_FOR_REQUEST;
-                }
-                case REFILL -> {
-                }
-                case ERROR -> {
-                    silentlyClose();
-                    logger.severe("Error reading, closing connection");
+                // Read the request
+                var status = requestReader.process(bufferIn);
+                switch (status) {
+                    case DONE -> {
+                        Request request = requestReader.get();
+                        requestHandler(request);
+                        readingState = ReadingState.WAITING_FOR_REQUEST;
+                    }
+                    case REFILL -> {
+                    }
+                    case ERROR -> {
+                        silentlyClose();
+                        readingState = ReadingState.WAITING_FOR_REQUEST;
+                        logger.severe("Error reading, closing connection");
+                    }
                 }
             }
 
@@ -687,7 +671,22 @@ public class ServerChatFusion {
 
         }
 
+        private void byteOpCodeReader() {
+            bufferIn.flip();
+            var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
+            bufferIn.compact();
+            if (optionalOpCode.isPresent()) {
+                requestReader = optionalOpCode.get().getRequestReader();
+                readingState = ReadingState.READING_REQUEST;
+            } else {
+                // Close the connection if it sent a wrong OpCode
+                silentlyClose();
+                logger.severe("Wrong opCode were read, closing connection");
+            }
+        }
+
         private void requestHandler(Request request) throws IOException {
+            logger.info(request.toString());
             switch (request) {
                 case RequestLoginAnonymous requestLoginAnonymous ->
                         server.addClient(requestLoginAnonymous.login().string(), key);
@@ -701,30 +700,34 @@ public class ServerChatFusion {
                         System.out.println("requestMessageFilePrivate");
 
                 case RequestFusionInit requestFusionInit -> {
-                    if (server.serverConnected.containsValue(requestFusionInit.serverName())) {
+                    var otherServerName = requestFusionInit.serverName().string();
+                    var otherServerAddress = requestFusionInit.address().address();
+
+                    if (server.serverName.equals(otherServerName) || server.serverConnected.containsValue(otherServerName)) {
                         ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                        reset();
                         return;
                     }
-                    logger.info("Fusion accepted with: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
+
+                    System.out.println("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
 
                     String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
                     ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
 
-                    updateLeader(serverSrc, address);
+                    updateLeader(otherServerName, otherServerAddress);
                 }
 
-                case RequestFusionInitKO requestFusionInitKO -> {
+                case RequestFusionInitKO ignored -> {
                     logger.info("Fusion denied !");
                     server.fusionState = FusionState.IDLE;
                 }
 
                 case RequestFusionInitOK requestFusionInitOK -> {
-                    System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
-                    updateLeader(serverSrc, address);
+                    System.out.println("Fusions Init OK From: " + requestFusionInitOK.serverName().string() + ":" + requestFusionInitOK.address().address() + " :: " + requestFusionInitOK.nbMembers() + " :: " + requestFusionInitOK.names());
+                    updateLeader(requestFusionInitOK.serverName().string(), requestFusionInitOK.address().address());
                 }
 
                 case RequestFusionRequest requestFusionRequest -> {
+                    var address = requestFusionRequest.address().address();
                     var host = address.getHostName();
                     var port = address.getPort();
                     server.stateController.sendCommand(host + " " + port, server.selector);
@@ -732,13 +735,12 @@ public class ServerChatFusion {
                 }
 
                 case RequestFusionInitFWD requestFusionInitFWD -> {
-                    var host = address.getHostName();
-                    var port = address.getPort();
+                    var leaderAddress = requestFusionInitFWD.address().address();
 
                     server.actualConnectionSocketChannel = SocketChannel.open();
                     server.actualConnectionSocketChannel.configureBlocking(false);
 
-                    server.actualConnectionSocketChannel.connect(address);
+                    server.actualConnectionSocketChannel.connect(leaderAddress);
 
                     var key = server.actualConnectionSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
                     server.actualConnection = new Context(server, key);
@@ -751,8 +753,7 @@ public class ServerChatFusion {
                 case RequestFusionRequestResponse requestFusionRequestResponse -> {
                     if (requestFusionRequestResponse.status() == 0)
                         System.out.println("Fusion has been refused by the leader");
-                    else
-                        System.out.println("Fusion has been accepted by the leader");
+                    else System.out.println("Fusion has been accepted by the leader");
                 }
 
                 case RequestFusionChangeLeader fusionChangeLeader -> {
@@ -856,10 +857,6 @@ public class ServerChatFusion {
                     return false;
                 }
         */
-        private void reset() {
-            requestState = RequestState.ANYTHING;
-            readingState = ReadingState.WAITING_FOR_REQUEST;
-        }
 
         /**
          * Add a request to the request queue, tries to fill bufferOut and updateInterestOps
