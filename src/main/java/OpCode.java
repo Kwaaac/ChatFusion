@@ -1,6 +1,7 @@
 package main.java;
 
 import main.java.reader.Reader;
+import main.java.reader.fusion.RequestFusionChangeLeaderReader;
 import main.java.reader.fusion.RequestFusionInitKOReader;
 import main.java.reader.fusion.RequestFusionInitReader;
 import main.java.reader.fusion.RequestFusionRequestReader;
@@ -18,7 +19,7 @@ public enum OpCode {
 
     MESSAGE(4, new RequestMessagePublicReader()), PRIVATE_MESSAGE(5, null), FILE_PRIVATE(6, null),
 
-    FUSION_INIT(8, new RequestFusionInitReader()), FUSION_INIT_OK(9, null), FUSION_INIT_KO(10, new RequestFusionInitKOReader()), FUSION_INIT_FWD(11, null), FUSION_REQUEST(12, new RequestFusionRequestReader()), FUSION_REQUEST_RESPONSE(13, null), FUSION_CHANGE_LEADER(14, null), FUSION_MERGE(15, null),
+    FUSION_INIT(8, new RequestFusionInitReader()), FUSION_INIT_OK(9, null), FUSION_INIT_KO(10, new RequestFusionInitKOReader()), FUSION_INIT_FWD(11, null), FUSION_REQUEST(12, new RequestFusionRequestReader()), FUSION_REQUEST_RESPONSE(13, null), FUSION_CHANGE_LEADER(14, new RequestFusionChangeLeaderReader()), FUSION_MERGE(15, null),
 
     // Idle is used as a placeholder waiting for a new OpCode for clients and server
     IDLE(-1, null);

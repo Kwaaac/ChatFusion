@@ -128,9 +128,7 @@ public class RequestFactory {
     }
 
     public static Request fusionChangeLeader(InetSocketAddress addressLeader) {
-        // FIXME
-        return null;
-        //return new RecordRequest(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
+        return new RequestFusionChangeLeader(new InetIpv4ChatFusion(addressLeader));
     }
 
     public static Request fusionRequest(InetSocketAddress addressServer) {
