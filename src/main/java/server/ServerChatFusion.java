@@ -731,6 +731,23 @@ public class ServerChatFusion {
                     ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
                 }
 
+                case RequestFusionInitFWD requestFusionInitFWD -> {
+                    var host = address.getHostName();
+                    var port = address.getPort();
+
+                    server.actualConnectionSocketChannel = SocketChannel.open();
+                    server.actualConnectionSocketChannel.configureBlocking(false);
+
+                    server.actualConnectionSocketChannel.connect(address);
+
+                    var key = server.actualConnectionSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
+                    server.actualConnection = new Context(server, key);
+                    key.attach(server.actualConnection);
+
+                    String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                    server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
+                }
+
                 case RequestFusionChangeLeader fusionChangeLeader -> {
                     server.leaderSocketChannel = SocketChannel.open();
                     server.leaderSocketChannel.configureBlocking(false);
