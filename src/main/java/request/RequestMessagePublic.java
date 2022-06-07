@@ -1,7 +1,7 @@
 package main.java.request;
 
 import main.java.OpCode;
-import main.java.Utils.StringChatFusion;
+import main.java.wrapper.StringChatFusion;
 
 import java.nio.ByteBuffer;
 

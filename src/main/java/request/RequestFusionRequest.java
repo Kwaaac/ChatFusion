@@ -1,8 +1,7 @@
 package main.java.request;
 
 import main.java.OpCode;
-import main.java.Utils.InetIpv4ChatFusion;
-import main.java.Utils.StringChatFusion;
+import main.java.wrapper.InetIpv4ChatFusion;
 
 import java.nio.ByteBuffer;
 

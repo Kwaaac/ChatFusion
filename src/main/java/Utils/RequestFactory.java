@@ -3,6 +3,8 @@ package main.java.Utils;
 import main.java.OpCode;
 import main.java.reader.RecordRequest;
 import main.java.request.*;
+import main.java.wrapper.InetIpv4ChatFusion;
+import main.java.wrapper.StringChatFusion;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -124,8 +126,8 @@ public class RequestFactory {
         return new RecordRequest(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
     }
 
-    public static RecordRequest fusionRequest(InetSocketAddress addressServer) {
-        return new RecordRequest(OpCode.FUSION_REQUEST, InetSocketAddressConverter.encodeInetSocketAddress(addressServer));
+    public static Request fusionRequest(InetSocketAddress addressServer) {
+        return new RequestFusionRequest(new InetIpv4ChatFusion(addressServer));
     }
 
     public static RecordRequest fusionRequestAccepted() {

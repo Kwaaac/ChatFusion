@@ -1,7 +1,6 @@
 package main.java.reader.login;
 
-import main.java.OpCode;
-import main.java.Utils.StringChatFusion;
+import main.java.wrapper.StringChatFusion;
 import main.java.reader.Reader;
 import main.java.reader.StringReader;
 import main.java.request.Request;

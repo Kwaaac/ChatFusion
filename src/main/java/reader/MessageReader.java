@@ -1,6 +1,6 @@
 package main.java.reader;
 
-import main.java.Utils.StringChatFusion;
+import main.java.wrapper.StringChatFusion;
 
 import java.nio.ByteBuffer;
 

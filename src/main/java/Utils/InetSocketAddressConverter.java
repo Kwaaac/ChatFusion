@@ -1,6 +1,6 @@
 package main.java.Utils;
 
-import main.java.BufferSerializable;
+import main.java.wrapper.InetIpv4ChatFusion;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
