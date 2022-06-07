@@ -213,7 +213,7 @@ public class ClientChatFusion {
         private Reader.ProcessStatus handleLogin() {
             // If not a problem, because the client is not connected
             if (watcher != OpCode.LOGIN_ACCEPTED) {
-                var status = intReader.process(bufferIn, 42);
+                var status = intReader.process(bufferIn);
                 switch (status) {
                     case DONE -> {
                         var result = intReader.get();
@@ -233,7 +233,7 @@ public class ClientChatFusion {
                 }
             }
 
-            var status = stringReader.process(bufferIn, 100);
+            var status = stringReader.process(bufferIn);
             if (status == Reader.ProcessStatus.DONE) {
                 serverName = stringReader.get();
                 stringReader.reset();
@@ -256,7 +256,7 @@ public class ClientChatFusion {
 
             while (!closed && bufferIn.position() != bufferIn.limit()) {
                 if (watcher == OpCode.IDLE) {
-                    var status = intReader.process(bufferIn, 42 /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
+                    var status = intReader.process(bufferIn  /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
                     switch (status) {
                         case DONE -> {
                             var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
@@ -288,7 +288,7 @@ public class ClientChatFusion {
                 }
                 switch (watcher) {
                     case LOGIN_ACCEPTED -> {
-                        var status = stringReader.process(bufferIn, 100);
+                        var status = stringReader.process(bufferIn);
                         switch (status) {
                             case DONE -> {
                                 serverName = stringReader.get();
@@ -313,10 +313,10 @@ public class ClientChatFusion {
                         silentlyClose();
                     }
                     case MESSAGE -> {
-                        var serverStatus = stringReader.process(bufferIn, 100);
+                        var serverStatus = stringReader.process(bufferIn);
                         switch (serverStatus) {
                             case DONE -> {
-                                var status = messageReader.process(bufferIn, 30);
+                                var status = messageReader.process(bufferIn);
                                 // Message printing process
                                 switch (status) {
                                     case DONE -> {

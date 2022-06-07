@@ -24,7 +24,7 @@ class SocketAdressReaderTest {
         bb.put((byte) 255);
         bb.putInt(8080);
         var sr = new InetSocketAddressReader();
-        assertEquals(Reader.ProcessStatus.DONE, sr.process(bb, 16));
+        assertEquals(Reader.ProcessStatus.DONE, sr.process(bb));
         assertEquals(expected, sr.get());
     }
 

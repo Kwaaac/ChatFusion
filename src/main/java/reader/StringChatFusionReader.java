@@ -1,17 +1,19 @@
 package main.java.reader;
 
+import main.java.Utils.StringChatFusion;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public class StringReader implements Reader<String> {
+public class StringChatFusionReader implements Reader<StringChatFusion> {
     private static final int BUFFER_SIZE = 1024;
     private static final Charset UTF8 = StandardCharsets.UTF_8;
     private final IntReader intReader = new IntReader();
     private ByteBuffer internalBuffer = ByteBuffer.allocate(Integer.BYTES);
     private State state = State.WAIT_INT;
-    private String value;
-    private int sizeValue = -1;
+    private StringChatFusion value;
+    private int sizeValue;
 
     public ProcessStatus process(ByteBuffer buffer) {
         if (this.state == State.DONE || this.state == State.ERROR) {
@@ -61,14 +63,14 @@ public class StringReader implements Reader<String> {
         } else {
             this.internalBuffer.flip();
             this.state = State.DONE;
-            this.value = UTF8.decode(internalBuffer).toString();
+            this.value = new StringChatFusion(UTF8.decode(internalBuffer).toString());
             internalBuffer = ByteBuffer.allocate(Integer.BYTES);
             return ProcessStatus.DONE;
         }
 
     }
 
-    public String get() {
+    public StringChatFusion get() {
         if (this.state != State.DONE) {
             throw new IllegalStateException();
         } else {
