@@ -8,6 +8,10 @@ import main.java.OpCode;
  * <p>
  * The buffer is in read-mode when get
  */
-public interface Request extends BufferSerializable {
+public sealed interface Request extends BufferSerializable permits RequestLoginAnonymous, RequestLoginPassword, RequestMessagePublic, RequestMessagePrivate, RequestMessageFilePrivate{
     OpCode getOpCode();
+
+    enum ReadingState {
+        READING_REQUEST, WAITING_FOR_REQUEST
+    }
 }

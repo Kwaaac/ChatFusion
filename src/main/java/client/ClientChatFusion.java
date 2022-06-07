@@ -2,7 +2,9 @@ package main.java.client;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
+import main.java.Utils.StringChatFusion;
 import main.java.reader.*;
+import main.java.request.Request.ReadingState;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -188,6 +190,8 @@ public class ClientChatFusion {
         private State state;
         private OpCode watcher = OpCode.IDLE;
 
+        private final ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
+
         private Context(SelectionKey key, String login) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
@@ -249,34 +253,14 @@ public class ClientChatFusion {
          * and after the call
          */
         private void processIn() {
-
-            if (bufferIn.position() == 0) {
-                return;
-            }
-
-            while (!closed && bufferIn.position() != bufferIn.limit()) {
+            while (bufferIn.position() != bufferIn.limit()) {
                 if (watcher == OpCode.IDLE) {
-                    var status = intReader.process(bufferIn  /*Pck c'est la réponse à la question sur l'univers, la vie et le reste*/);
-                    switch (status) {
-                        case DONE -> {
-                            var optionalWatcher = OpCode.getOpCodeFromInt(intReader.get());
-                            intReader.reset();
-                            if (optionalWatcher.isPresent()) {
-                                watcher = optionalWatcher.get();
-                            } else {
-                                // Close the connection if it sent a wrong OpCode
-                                silentlyClose();
-                                intReader.reset();
-                            }
-                        }
-                        case ERROR -> {
-                            // Server drunk
-                            silentlyClose();
-                            return;
-                        }
-                        case REFILL -> {
-                            return;
-                        }
+                    var optionalWatcher = OpCode.getOpCodeFromByte(bufferIn.get());
+                    if (optionalWatcher.isPresent()) {
+                        watcher = optionalWatcher.get();
+                    } else {
+                        // Close the connection if it sent a wrong OpCode
+                        silentlyClose();
                     }
                 }
 
@@ -286,6 +270,8 @@ public class ClientChatFusion {
                     silentlyClose();
                     return;
                 }
+
+
                 switch (watcher) {
                     case LOGIN_ACCEPTED -> {
                         var status = stringReader.process(bufferIn);
@@ -421,7 +407,9 @@ public class ClientChatFusion {
          */
         private void doRead() throws IOException {
             closed = (sc.read(bufferIn) == -1);
-            processIn();
+            if (!closed) {
+                processIn();
+            }
             updateInterestOps();
         }
 
@@ -446,7 +434,7 @@ public class ClientChatFusion {
         private void processConnection() {
             // Sending anonymous connection request
             if (state == State.PENDING_ANONYMOUS) {
-                queueRequest(RequestFactory.loginAnonymous(login));
+                queueRequest(new RecordRequest(OpCode.LOGIN_ANONYMOUS, new StringChatFusion(login).encode()));
             } else { // Sending password connection request
                 queueRequest(RequestFactory.loginPassword(login, password));
             }
