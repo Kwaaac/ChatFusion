@@ -1,11 +1,8 @@
 package main.java.Utils;
 
 import main.java.OpCode;
-import main.java.reader.Message;
 import main.java.reader.RecordRequest;
-import main.java.request.Request;
-import main.java.request.RequestLoginAccepted;
-import main.java.request.RequestLoginAnonymous;
+import main.java.request.*;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -30,14 +27,11 @@ public class RequestFactory {
      *
      * @return
      */
-    public static RecordRequest loginPassword(String login, String password) {
+    public static Request loginPassword(String login, String password) {
         var strLogin = new StringChatFusion(login);
         var strPassword = new StringChatFusion(password);
 
-        var buffer = ByteBuffer.allocate(strLogin.bufferLength() + strPassword.bufferLength());
-        buffer.put(strLogin.encode()).put(strPassword.encode());
-
-        return new RecordRequest(OpCode.LOGIN_PASSWORD, buffer.flip());
+        return new RequestLoginPassword(strLogin, strPassword);
     }
 
     /**
@@ -65,14 +59,8 @@ public class RequestFactory {
      * @param message
      * @return
      */
-    public static RecordRequest publicMessage(String serverName, Message message) {
-        var strServerName = new StringChatFusion(serverName);
-
-        var buffer = ByteBuffer.allocate(strServerName.bufferLength() + message.bufferLength());
-
-        buffer.put(strServerName.encode()).put(message.encode());
-
-        return new RecordRequest(OpCode.MESSAGE, buffer.flip());
+    public static Request publicMessage(String serverName, String login, String message) {
+        return new RequestMessagePublic(new StringChatFusion(serverName), new StringChatFusion(login), new StringChatFusion(message));
     }
 
     /**

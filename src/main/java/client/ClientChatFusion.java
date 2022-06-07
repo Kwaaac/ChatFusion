@@ -2,11 +2,14 @@ package main.java.client;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
-import main.java.Utils.StringChatFusion;
-import main.java.reader.*;
+import main.java.reader.IntReader;
+import main.java.reader.MessageReader;
+import main.java.reader.Reader;
+import main.java.reader.StringReader;
 import main.java.request.Request;
 import main.java.request.Request.ReadingState;
 import main.java.request.RequestLoginAccepted;
+import main.java.request.RequestMessagePublic;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -122,7 +125,7 @@ public class ClientChatFusion {
             return;
         }
 
-        uniqueContext.sendPublicMessage(new Message(login, msg));
+        uniqueContext.sendPublicMessage(login, msg);
     }
 
     private void treatKey(SelectionKey key) {
@@ -182,7 +185,7 @@ public class ClientChatFusion {
         private final String login;
         private final ByteBuffer bufferIn = ByteBuffer.allocate(BUFFER_SIZE);
         private final ByteBuffer bufferOut = ByteBuffer.allocate(BUFFER_SIZE);
-        private final ArrayDeque<RecordRequest> requestQueue = new ArrayDeque<>();
+        private final ArrayDeque<Request> requestQueue = new ArrayDeque<>();
         private final MessageReader messageReader = new MessageReader();
         private final StringReader stringReader = new StringReader();
         private final IntReader intReader = new IntReader();
@@ -362,6 +365,15 @@ public class ClientChatFusion {
                         System.out.println("\t" + "Connection established with server: " + serverName);
                     }
                 }
+                case RequestMessagePublic requestMessagePublic -> {
+                    // Print Message with login, server, time, and the content
+                    var server = requestMessagePublic.serverName();
+                    var login = requestMessagePublic.login();
+                    var msg = requestMessagePublic.message();
+                    var time = LocalDateTime.now();
+
+                    System.out.println(login + "[" + server + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
+                }
 
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);
@@ -373,7 +385,7 @@ public class ClientChatFusion {
         /**
          * Add a request to the request queue, tries to fill bufferOut and updateInterestOps
          */
-        private void queueRequest(RecordRequest request) {
+        private void queueRequest(Request request) {
             requestQueue.add(request);
             processOut();
             updateInterestOps();
@@ -466,7 +478,7 @@ public class ClientChatFusion {
         private void processConnection() {
             // Sending anonymous connection request
             if (state == State.PENDING_ANONYMOUS) {
-                queueRequest(new RecordRequest(OpCode.LOGIN_ANONYMOUS, new StringChatFusion(login).encode()));
+                queueRequest(RequestFactory.loginAnonymous(login));
             } else { // Sending password connection request
                 queueRequest(RequestFactory.loginPassword(login, password));
             }
@@ -478,8 +490,8 @@ public class ClientChatFusion {
             updateInterestOps();
         }
 
-        public void sendPublicMessage(Message message) {
-            queueRequest(RequestFactory.publicMessage(serverName, message));
+        public void sendPublicMessage(String login, String message) {
+            queueRequest(RequestFactory.publicMessage(serverName, login, message));
         }
     }
 }

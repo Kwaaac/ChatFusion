@@ -1,5 +1,7 @@
 package main.java.reader;
 
+import main.java.Utils.StringChatFusion;
+
 import java.nio.ByteBuffer;
 
 public class MessageReader implements Reader<Message> {
@@ -46,7 +48,7 @@ public class MessageReader implements Reader<Message> {
         if (this.state != State.DONE) {
             throw new IllegalStateException();
         } else {
-            return new Message(login, msg);
+            return new Message(new StringChatFusion(login), new StringChatFusion((msg)));
         }
     }
 

@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 
 public record RequestLoginAnonymous(StringChatFusion login) implements Request {
     public RequestLoginAnonymous {
-        if (login.bufferLength() - Integer.BYTES > 30) {
+        if (login.size() > 30) {
             throw new IllegalArgumentException("severName length superior than 30 UTF8 characters");
         }
     }

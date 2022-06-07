@@ -229,18 +229,15 @@ public class ServerChatFusion {
      *
      * @param request The request to broadcast to every client
      */
-    private void broadcast(RecordRequest request, SelectionKey sender) {
-        // FIXME Passer le RequestFactory avec un Request et non un RecordRequest (qui va disparaitre)
-        //clientConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
+    private void broadcast(Request request, SelectionKey sender) {
+        clientConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(context -> context.queueRequest(request));
         if (isLeader()) {
-            // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-            // serverConnected.keySet().stream().filter(s -> !s.equals(sender)).map(s -> (Context) s.attachment()).forEach(context -> context.queueRequest(request));
+            serverConnected.keySet().stream().filter(s -> !s.equals(sender)).map(s -> (Context) s.attachment()).forEach(context -> context.queueRequest(request));
             return;
         }
 
         if (!sender.equals(leader.key)) {
-            // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-            // leader.queueRequest(request);
+            leader.queueRequest(request);
         }
     }
 
@@ -691,12 +688,14 @@ public class ServerChatFusion {
 
         private void requestHandler(Request request) {
             switch (request) {
-                case RequestLoginAnonymous requestLoginAnonymous ->
-                    // We add the client to the connected clients
-                        server.addClient(requestLoginAnonymous.login().string(), key);
+                case RequestLoginAnonymous requestLoginAnonymous -> server.addClient(requestLoginAnonymous.login().string(), key);
+
                 case RequestLoginPassword requestLoginPassword -> System.out.println("requestLoginPassword");
-                case RequestMessagePublic requestMessagePublic -> System.out.println("requestMessagePublic");
+
+                case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
+
                 case RequestMessagePrivate requestMessagePrivate -> System.out.println("requestMessagePrivate");
+
                 case RequestMessageFilePrivate requestMessageFilePrivate ->
                         System.out.println("requestMessageFilePrivate");
 

@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 
 public record RequestLoginAccepted(StringChatFusion serverName) implements Request {
     public RequestLoginAccepted {
-        if (serverName.bufferLength() - Integer.BYTES > 100) {
+        if (serverName.size() > 100) {
             throw new IllegalArgumentException("severName length superior than 100 UTF8 characters");
         }
     }
