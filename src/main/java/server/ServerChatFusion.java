@@ -719,6 +719,11 @@ public class ServerChatFusion {
                     server.fusionState = FusionState.IDLE;
                 }
 
+                case RequestFusionInitOK requestFusionInitOK -> {
+                    System.out.println("Fusions Init OK From: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
+                    updateLeader(serverSrc, address);
+                }
+
                 case RequestFusionRequest requestFusionRequest -> {
                     var host = address.getHostName();
                     var port = address.getPort();
