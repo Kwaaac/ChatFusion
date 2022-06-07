@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 public class RequestLoginPasswordReader implements Reader<Request> {
     private final StringReader stringReader = new StringReader();
     private String login;
+    private String password;
     private State state = State.WAIT_LOGIN;
     @Override
     public ProcessStatus process(ByteBuffer bb) {
@@ -21,9 +22,13 @@ public class RequestLoginPasswordReader implements Reader<Request> {
             var status = stringReader.process(bb);
             switch (status) {
                 case DONE -> {
-                    var login = stringReader.get();
-                    stringReader.reset();
-                    reset();
+                    if(state == State.WAIT_LOGIN) {
+                        var login = stringReader.get();
+                        stringReader.reset();
+                        state = State.WAIT_PSWD;
+                    }
+                    password = stringReader.get();
+                    state = State.DONE;
                     return ProcessStatus.DONE;
                 }
                 case ERROR -> {
@@ -52,6 +57,6 @@ public class RequestLoginPasswordReader implements Reader<Request> {
     }
 
     private enum State {
-        DONE, WAIT_LOGIN, ERROR
+        DONE, WAIT_LOGIN, WAIT_PSWD, ERROR
     }
 }
