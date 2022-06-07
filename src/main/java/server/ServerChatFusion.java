@@ -696,8 +696,6 @@ public class ServerChatFusion {
 
                 case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
 
-                case RequestMessagePrivate requestMessagePrivate -> System.out.println("requestMessagePrivate");
-
                 case RequestMessageFilePrivate requestMessageFilePrivate ->
                         System.out.println("requestMessageFilePrivate");
 
@@ -707,13 +705,19 @@ public class ServerChatFusion {
                         reset();
                         return;
                     }
-                    System.out.println("Fusion accepted with: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
+                    logger.info("Fusion accepted with: " + serverSrc + ":" + address + " :: " + nbMembers + " :: " + server.memberAddList);
 
                     String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
                     ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
 
                     updateLeader(serverSrc, address);
                 }
+
+                case RequestFusionInitKO requestFusionInitKO -> {
+                    logger.info("Fusion denied !");
+                    server.fusionState = FusionState.IDLE;
+                }
+
 
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);
