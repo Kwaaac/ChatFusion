@@ -3,7 +3,8 @@ package main.java.server;
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
 import main.java.reader.*;
-import main.java.request.Request;
+import main.java.request.*;
+import main.java.request.Request.ReadingState;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -304,7 +305,7 @@ public class ServerChatFusion {
         private final InetSocketAddressReader addressReader = new InetSocketAddressReader();
         private final ArrayDeque<RecordRequest> requestQueue = new ArrayDeque<>();
         private final ServerChatFusion server; // we could also have Context as an instance class
-        private final ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
+        private ReadingState readingState = ReadingState.WAITING_FOR_REQUEST;
         private RequestState requestState = RequestState.ANYTHING;
         private boolean activeSinceLastTimeoutCheck = true;
         private boolean closed = false;
@@ -345,6 +346,7 @@ public class ServerChatFusion {
             server.actualConnection = null;
         }
 
+
         /**
          * Process the content of bufferIn
          * <p>
@@ -354,14 +356,30 @@ public class ServerChatFusion {
         private void processIn() throws IOException {
             if (readingState == ReadingState.WAITING_FOR_REQUEST) {
                 var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
-
                 if (optionalOpCode.isPresent()) {
-                    requestReader =
-                    intReader.reset();
+                    requestReader = optionalOpCode.get().getRequestReader();
+                    readingState = ReadingState.READING_REQUEST;
                 } else
                     // Close the connection if it sent a wrong OpCode
                     silentlyClose();
+            }
 
+            // Read the request
+            var status = requestReader.process(bufferIn);
+            switch (status) {
+                case REFILL -> {
+                }
+
+                case ERROR -> {
+                    silentlyClose();
+                    logger.severe("Error reading, closing connection");
+                }
+
+                case DONE -> {
+                    Request request = requestReader.get();
+                    requestHandler(request);
+                    readingState = ReadingState.WAITING_FOR_REQUEST;
+                }
             }
 
                 /*
@@ -659,6 +677,17 @@ public class ServerChatFusion {
 
         }
 
+        private void requestHandler(Request request) {
+            switch (request) {
+                case RequestLoginAnonymous requestLoginAnonymous -> System.out.println("requestLoginAnonymous");
+                case RequestLoginPassword requestLoginPassword -> System.out.println("requestLoginPassword");
+                case RequestMessagePublic requestMessagePublic -> System.out.println("requestMessagePublic");
+                case RequestMessagePrivate requestMessagePrivate -> System.out.println("requestMessagePrivate");
+                case RequestMessageFilePrivate requestMessageFilePrivate ->
+                        System.out.println("requestMessageFilePrivate");
+            }
+        }
+
         private boolean fusionInit() {
             if (requestState == RequestState.ANYTHING) {
                 var serverStatus = stringReader.process(bufferIn);
@@ -732,7 +761,7 @@ public class ServerChatFusion {
 
         private void reset() {
             requestState = RequestState.ANYTHING;
-            watcher = OpCode.IDLE;
+            readingState = ReadingState.WAITING_FOR_REQUEST;
         }
 
         /**
@@ -849,10 +878,6 @@ public class ServerChatFusion {
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             updateInterestOps();
-        }
-
-        private enum ReadingState {
-            READING_REQUEST, WAITING_FOR_REQUEST
         }
 
         private enum RequestState {
