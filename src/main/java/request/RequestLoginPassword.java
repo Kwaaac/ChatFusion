@@ -13,7 +13,7 @@ public record RequestLoginPassword(StringChatFusion login, StringChatFusion pass
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put((byte) getOpCode().getOpCode()).put(login.encode()).put(password.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(login.encode()).put(password.encode());
     }
 
     @Override

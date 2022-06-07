@@ -4,24 +4,19 @@ import main.java.OpCode;
 
 import java.nio.ByteBuffer;
 
-public record RequestMessageFilePrivate() implements RequestMessage {
+public record RequestMessageFilePrivate() implements Request {
     @Override
     public OpCode getOpCode() {
         return null;
     }
 
     @Override
-    public ByteBuffer getBuffer() {
-        return null;
+    public int bufferLength() {
+        return 0;
     }
 
     @Override
-    public String getServer() {
-        return null;
-    }
-
-    @Override
-    public String getLogin() {
+    public ByteBuffer encode() {
         return null;
     }
 }

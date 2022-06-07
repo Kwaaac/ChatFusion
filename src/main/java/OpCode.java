@@ -30,7 +30,6 @@ public enum OpCode {
     private final int opCode;
     private final Reader<Request> requestReader;
 
-
     OpCode(int opCode, Reader<Request> requestReader) {
         this.opCode = opCode;
         this.requestReader = requestReader;
@@ -41,8 +40,12 @@ public enum OpCode {
         return conn == null ? Optional.empty() : Optional.of(conn);
     }
 
+    public Reader<Request> getRequestReader() {
+        requestReader.reset();
+        return requestReader;
+    }
+
     public byte getOpCode() {
         return (byte) opCode;
     }
-
 }
