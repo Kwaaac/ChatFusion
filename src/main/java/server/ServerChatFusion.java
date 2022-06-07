@@ -767,6 +767,16 @@ public class ServerChatFusion {
                     server.leader.queueRequest(RequestFactory.fusionMerge(server.serverName));
                 }
 
+                case RequestFusionMerge requestFusionMerge -> {
+                    if (server.memberAddList.remove(requestFusionMerge.serverName().string())) {
+                        server.serverConnected.put(key, requestFusionMerge.serverName().string());
+                    }
+
+                    if (server.memberAddList.isEmpty()) {
+                        server.fusionState = FusionState.IDLE;
+                    }
+                }
+
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);
                     silentlyClose();

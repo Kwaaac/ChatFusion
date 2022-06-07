@@ -12,7 +12,7 @@ public record RequestFusionRequestResponse(Byte status) implements Request{
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(status);
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(status);
     }
 
     @Override

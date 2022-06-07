@@ -18,7 +18,7 @@ public enum OpCode {
 
     MESSAGE(4, new RequestMessagePublicReader()), PRIVATE_MESSAGE(5, new RequestMessagePrivateReader()), FILE_PRIVATE(6, null),
 
-    FUSION_INIT(8, new RequestFusionInitReader()), FUSION_INIT_OK(9, new RequestFusionInitOKReader()), FUSION_INIT_KO(10, new RequestFusionInitKOReader()), FUSION_INIT_FWD(11, new RequestFusionFWDReader()), FUSION_REQUEST(12, new RequestFusionRequestReader()), FUSION_REQUEST_RESPONSE(13, new RequestFusionRequestResponseReader()), FUSION_CHANGE_LEADER(14, new RequestFusionChangeLeaderReader()), FUSION_MERGE(15, null),
+    FUSION_INIT(8, new RequestFusionInitReader()), FUSION_INIT_OK(9, new RequestFusionInitOKReader()), FUSION_INIT_KO(10, new RequestFusionInitKOReader()), FUSION_INIT_FWD(11, new RequestFusionFWDReader()), FUSION_REQUEST(12, new RequestFusionRequestReader()), FUSION_REQUEST_RESPONSE(13, new RequestFusionRequestResponseReader()), FUSION_CHANGE_LEADER(14, new RequestFusionChangeLeaderReader()), FUSION_MERGE(15, new RequestFusionMergeReader()),
 
     // Idle is used as a placeholder waiting for a new OpCode for clients and server
     IDLE(-1, null);
