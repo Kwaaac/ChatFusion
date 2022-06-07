@@ -244,21 +244,19 @@ public class ServerChatFusion {
 
     public void addClient(String login, SelectionKey key) {
         var refused = login.getBytes(StandardCharsets.UTF_8).length <= 30;
+        var client = (Context) key.attachment();
         if (!refused) {
             refused = (clientConnected.putIfAbsent(key, login) != null);
-            var client = (Context) key.attachment();
         }
 
         if (refused) {
             // send connection refused
-            // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-            // client.queueRequest(RequestFactory.loginRefused());
+            client.queueRequest(RequestFactory.loginRefused());
             return;
         }
 
         // send connection accept
-        // FIXME Passer le RequestFactory FusionRequest avec un Request et non un RecordRequest (qui va disparaitre)
-        // client.queueRequest(RequestFactory.loginAccepted(serverName));
+        client.queueRequest(RequestFactory.loginAccepted(serverName));
     }
 
     private enum State {
