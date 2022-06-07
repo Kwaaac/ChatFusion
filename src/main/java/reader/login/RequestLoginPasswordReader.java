@@ -1,10 +1,9 @@
 package main.java.reader.login;
 
-import main.java.wrapper.StringChatFusion;
+import main.java.Utils.RequestFactory;
 import main.java.reader.Reader;
 import main.java.reader.StringReader;
 import main.java.request.Request;
-import main.java.request.RequestLoginPassword;
 
 import java.nio.ByteBuffer;
 
@@ -23,9 +22,10 @@ public class RequestLoginPasswordReader implements Reader<Request> {
             switch (status) {
                 case DONE -> {
                     if(state == State.WAIT_LOGIN) {
-                        var login = stringReader.get();
+                        login = stringReader.get();
                         stringReader.reset();
                         state = State.WAIT_PSWD;
+                        break;
                     }
                     password = stringReader.get();
                     state = State.DONE;
@@ -47,7 +47,7 @@ public class RequestLoginPasswordReader implements Reader<Request> {
         if(state != State.DONE) {
             throw new IllegalStateException();
         }
-        return new RequestLoginPassword(new StringChatFusion(login), null);
+        return RequestFactory.loginPassword(login, password);
     }
 
     @Override

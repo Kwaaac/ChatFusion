@@ -692,7 +692,8 @@ public class ServerChatFusion {
                 case RequestLoginAnonymous requestLoginAnonymous ->
                         server.addClient(requestLoginAnonymous.login().string(), key);
 
-                case RequestLoginPassword requestLoginPassword -> System.out.println("requestLoginPassword");
+                case RequestLoginPassword requestLoginPassword ->
+                        server.addClient(requestLoginPassword.login().string(), key);
 
                 case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
 
