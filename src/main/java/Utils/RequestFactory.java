@@ -68,6 +68,19 @@ public class RequestFactory {
 
     /**
      * TODO
+     * @param serverSrc
+     * @param serverDst
+     * @param loginSrc
+     * @param loginDst
+     * @param message
+     * @return
+     */
+    public static Request privateMessage(String serverSrc, String serverDst, String loginSrc, String loginDst, String message) {
+        return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(loginDst), new StringChatFusion(message));
+    }
+
+    /**
+     * TODO
      *
      * @param serverName Name of the leaderServer
      * @param address    Address of the leaderServer

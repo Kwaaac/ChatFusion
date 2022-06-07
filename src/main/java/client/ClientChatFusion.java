@@ -6,11 +6,8 @@ import main.java.reader.IntReader;
 import main.java.reader.MessageReader;
 import main.java.reader.Reader;
 import main.java.reader.StringReader;
-import main.java.request.Request;
+import main.java.request.*;
 import main.java.request.Request.ReadingState;
-import main.java.request.RequestLoginAccepted;
-import main.java.request.RequestLoginRefused;
-import main.java.request.RequestMessagePublic;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -379,6 +376,17 @@ public class ClientChatFusion {
                     var time = LocalDateTime.now();
 
                     System.out.println(login + "[" + server + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
+                }
+
+                case RequestMessagePrivate requestMessagePrivate -> {
+                    var serverSrc = requestMessagePrivate.serverSrc();
+                    var serverDst = requestMessagePrivate.serverDst();
+                    var loginSrc = requestMessagePrivate.loginSrc();
+                    var loginDst = requestMessagePrivate.loginDst();
+                    var msg = requestMessagePrivate.message();
+                    var time = LocalDateTime.now();
+
+                    System.out.println("From :" + loginSrc + "[" + serverSrc + "] to :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
                 }
 
                 default -> { // Unsupported request, we end the connection with the client
