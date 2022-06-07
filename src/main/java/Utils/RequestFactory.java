@@ -4,6 +4,7 @@ import main.java.OpCode;
 import main.java.reader.Message;
 import main.java.reader.RecordRequest;
 import main.java.request.Request;
+import main.java.request.RequestLoginAccepted;
 import main.java.request.RequestLoginAnonymous;
 
 import java.net.InetSocketAddress;
@@ -20,8 +21,8 @@ public class RequestFactory {
      *
      * @return
      */
-    public static Request loginAnonymous(StringChatFusion login) {
-        return new RequestLoginAnonymous(login);
+    public static Request loginAnonymous(String login) {
+        return new RequestLoginAnonymous(new StringChatFusion(login));
     }
 
     /**
@@ -53,8 +54,8 @@ public class RequestFactory {
      *
      * @return
      */
-    public static RecordRequest loginAccepted(String serverName) {
-        return new RecordRequest(OpCode.LOGIN_ACCEPTED, new StringChatFusion(serverName).encode());
+    public static Request loginAccepted(String serverName) {
+        return new RequestLoginAccepted(new StringChatFusion(serverName));
     }
 
     /**
