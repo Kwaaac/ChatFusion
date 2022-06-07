@@ -17,7 +17,6 @@ public record RequestFusionInit(StringChatFusion name, InetIpv4ChatFusion addres
                 + Integer.BYTES // nbMembers
                 + Arrays.stream(names).mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers
     }
-
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
