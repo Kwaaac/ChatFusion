@@ -12,7 +12,7 @@ public record RequestFusionInitKO() implements Request {
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()); // OpCode
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).flip(); // OpCode
     }
 
     @Override

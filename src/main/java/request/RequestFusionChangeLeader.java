@@ -19,6 +19,6 @@ public record RequestFusionChangeLeader(InetIpv4ChatFusion address) implements R
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(address.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(address.encode()).flip();
     }
 }

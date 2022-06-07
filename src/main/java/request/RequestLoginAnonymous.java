@@ -24,6 +24,6 @@ public record RequestLoginAnonymous(StringChatFusion login) implements Request {
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(login.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(login.encode()).flip();
     }
 }

@@ -21,7 +21,7 @@ public record RequestMessagePublic(StringChatFusion serverName, StringChatFusion
 
     @Override
     public int bufferLength() {
-        return 1 + Integer.BYTES * 3 + serverName.bufferLength() + message.bufferLength();
+        return 1 + Integer.BYTES * 3 + serverName.bufferLength() + login.bufferLength() + message.bufferLength();
     }
 
     @Override
@@ -29,7 +29,7 @@ public record RequestMessagePublic(StringChatFusion serverName, StringChatFusion
         return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()) // OpCode
                 .put(serverName.encode()) // Server Name size + Server name
                 .put(login.encode()) // Login size + login
-                .put(message.encode()); // message size + message
+                .put(message.encode()).flip(); // message size + message
 
     }
 

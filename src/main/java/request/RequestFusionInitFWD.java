@@ -13,7 +13,7 @@ public record RequestFusionInitFWD(InetIpv4ChatFusion addressLeader) implements 
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(addressLeader.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(addressLeader.encode()).flip();
     }
 
     @Override

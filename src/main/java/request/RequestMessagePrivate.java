@@ -41,7 +41,8 @@ public record RequestMessagePrivate(StringChatFusion serverSrc,
                 .put(loginSrc.encode())
                 .put(serverDst.encode())
                 .put(loginDst.encode())
-                .put(message.encode());
+                .put(message.encode())
+                .flip();
     }
 
     @Override

@@ -24,6 +24,6 @@ public record RequestLoginAccepted(StringChatFusion serverName) implements Reque
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(serverName.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(serverName.encode()).flip();
     }
 }

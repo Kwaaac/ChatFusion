@@ -19,6 +19,6 @@ public record RequestFusionRequest(InetIpv4ChatFusion address) implements Reques
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(address.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(address.encode()).flip();
     }
 }

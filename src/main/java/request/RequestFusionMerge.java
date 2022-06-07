@@ -14,7 +14,7 @@ public record RequestFusionMerge(StringChatFusion serverName) implements Request
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(serverName.encode());
+        return ByteBuffer.allocate(bufferLength()).put(getOpCode().getOpCode()).put(serverName.encode()).flip();
     }
 
     @Override

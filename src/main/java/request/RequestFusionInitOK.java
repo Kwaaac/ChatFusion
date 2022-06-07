@@ -6,15 +6,16 @@ import main.java.wrapper.StringChatFusion;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 
 public record RequestFusionInitOK(StringChatFusion serverName,
                                   InetIpv4ChatFusion address,
                                   int nbMembers,
-                                  StringChatFusion... names) implements Request{
+                                  List<StringChatFusion> names) implements Request{
     public RequestFusionInitOK {
         if(serverName.size() > 100)
             throw new IllegalArgumentException("severName length superior than 100 UTF8 characters");
-        if (nbMembers != names.length)
+        if (nbMembers != names.size())
             throw new IllegalArgumentException("nbMembers and number of server given must be identical");
     }
 
@@ -25,7 +26,7 @@ public record RequestFusionInitOK(StringChatFusion serverName,
                 + serverName.bufferLength()
                 + address.bufferLength()
                 + Integer.BYTES
-                + Arrays.stream(names).mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers;
+                + names.stream().mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers;
     }
 
     @Override
@@ -35,11 +36,11 @@ public record RequestFusionInitOK(StringChatFusion serverName,
                 .put(address.encode()) // address
                 .putInt(nbMembers); // number of members
 
-        Arrays.stream(names)// Stream
+        names.stream()// Stream
                 .map(StringChatFusion::encode) // From names to buffer
                 .forEach(buffer::put); // add every bufferName to final buffer
 
-        return buffer;
+        return buffer.flip();
     }
 
     @Override
