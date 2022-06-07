@@ -718,6 +718,12 @@ public class ServerChatFusion {
                     server.fusionState = FusionState.IDLE;
                 }
 
+                case RequestFusionRequest requestFusionRequest -> {
+                    var host = address.getHostName();
+                    var port = address.getPort();
+                    server.stateController.sendCommand(host + " " + port, server.selector);
+                    ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
+                }
 
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);

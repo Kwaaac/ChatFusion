@@ -1,7 +1,6 @@
 package main.java.Utils;
 
 import main.java.OpCode;
-import main.java.reader.RecordRequest;
 import main.java.request.*;
 import main.java.wrapper.InetIpv4ChatFusion;
 import main.java.wrapper.StringChatFusion;
@@ -41,8 +40,10 @@ public class RequestFactory {
      *
      * @return
      */
-    public static RecordRequest loginRefused() {
-        return new RecordRequest(OpCode.LOGIN_REFUSED, ByteBuffer.allocate(0));
+    public static Request loginRefused() {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.LOGIN_REFUSED, ByteBuffer.allocate(0));
     }
 
     /**
@@ -114,27 +115,37 @@ public class RequestFactory {
      * @param address
      * @return
      */
-    public static RecordRequest fusionInitForward(InetSocketAddress address) {
-        return new RecordRequest(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
+    public static Request fusionInitForward(InetSocketAddress address) {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.FUSION_INIT_FWD, InetSocketAddressConverter.encodeInetSocketAddress(address));
     }
 
-    public static RecordRequest fusionMerge(String serverName) {
-        return new RecordRequest(OpCode.FUSION_MERGE, new StringChatFusion(serverName).encode());
+    public static Request fusionMerge(String serverName) {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.FUSION_MERGE, new StringChatFusion(serverName).encode());
     }
 
-    public static RecordRequest fusionChangeLeader(InetSocketAddress addressLeader) {
-        return new RecordRequest(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
+    public static Request fusionChangeLeader(InetSocketAddress addressLeader) {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.FUSION_CHANGE_LEADER, InetSocketAddressConverter.encodeInetSocketAddress(addressLeader));
     }
 
     public static Request fusionRequest(InetSocketAddress addressServer) {
         return new RequestFusionRequest(new InetIpv4ChatFusion(addressServer));
     }
 
-    public static RecordRequest fusionRequestAccepted() {
-        return new RecordRequest(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 1));
+    public static Request fusionRequestAccepted() {
+        // FIXME
+        return null;
+        //return new RecordRequest(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 1));
     }
 
-    public static RecordRequest fusionRequestRefused() {
-        return new RecordRequest(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 0));
+    public static Request fusionRequestRefused() {
+        // FIXME
+        return null;
+        // return new RecordRequest(OpCode.FUSION_REQUEST_RESPONSE, ByteBuffer.allocate(1).put((byte) 0));
     }
 }
