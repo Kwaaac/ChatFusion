@@ -725,6 +725,18 @@ public class ServerChatFusion {
                     ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
                 }
 
+                case RequestFusionChangeLeader fusionChangeLeader -> {
+                    server.leaderSocketChannel = SocketChannel.open();
+                    server.leaderSocketChannel.configureBlocking(false);
+                    server.leaderSocketChannel.connect(fusionChangeLeader.address().address());
+
+                    var key = server.leaderSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
+                    server.leader = new Context(server, key);
+                    key.attach(server.leader);
+
+                    server.leader.queueRequest(RequestFactory.fusionMerge(server.serverName));
+                }
+
                 default -> { // Unsupported request, we end the connection with the client
                     logger.severe("Unsupported request:" + request);
                     silentlyClose();
