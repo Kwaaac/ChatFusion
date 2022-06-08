@@ -27,16 +27,4 @@ class SocketAdressReaderTest {
         assertEquals(Reader.ProcessStatus.DONE, sr.process(bb));
         assertEquals(expected, sr.get());
     }
-
-    private void aled(String... args) {
-        System.out.println(Arrays.toString(args));
-    }
-
-    @Test
-    public void test() {
-        var lst = List.of("Bob", "Guillaume", "Max");
-
-        var names = lst.toArray(new String[0]);
-        aled(names);
-    }
 }
