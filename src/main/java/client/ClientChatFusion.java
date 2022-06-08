@@ -111,6 +111,15 @@ public class ClientChatFusion {
         }
     }
 
+    private void printConsoleUsage() {
+        System.out.println("""
+                List of commands:
+                    - /help -> print this usage section
+                    - /w -> whisper a private message to a client
+                    - /wf [server_destination_name] [login_client] [path_to_file_name]-> whisper a private file to a client
+                """);
+    }
+
     /**
      * Processes the command from the BlockingQueue
      */
@@ -120,7 +129,20 @@ public class ClientChatFusion {
             return;
         }
 
-        uniqueContext.sendPublicMessage(login, msg);
+        switch (msg){
+            case String msgString && msgString.startsWith("/help") -> printConsoleUsage();
+            case String msgString && msgString.startsWith("/w") -> {
+                String[] strings = msgString.split(" ", 4);
+                var command = strings[0];
+                var serverDst = strings[1];
+                var loginDst = strings[2];
+                var message = strings[3];
+                uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message);
+
+            } // TODO uniqueContext.sendPrivateMessage(...);
+            case String msgString && msgString.startsWith("/wf") -> System.out.println("TODO"); // TODO uniqueContext.sendPrivateFile(...);
+            default -> uniqueContext.sendPublicMessage(login, msg);
+        }
     }
 
     private void treatKey(SelectionKey key) {
@@ -334,14 +356,14 @@ public class ClientChatFusion {
                 }
 
                 case RequestMessagePrivate requestMessagePrivate -> {
-                    var serverSrc = requestMessagePrivate.serverSrc();
-                    var serverDst = requestMessagePrivate.serverDst();
-                    var loginSrc = requestMessagePrivate.loginSrc();
-                    var loginDst = requestMessagePrivate.loginDst();
-                    var msg = requestMessagePrivate.message();
+                    var serverSrc = requestMessagePrivate.serverSrc().string();
+                    var serverDst = requestMessagePrivate.serverDst().string();
+                    var loginSrc = requestMessagePrivate.loginSrc().string();
+                    var loginDst = requestMessagePrivate.loginDst().string();
+                    var msg = requestMessagePrivate.message().string();
                     var time = LocalDateTime.now();
 
-                    System.out.println("From :" + loginSrc + "[" + serverSrc + "] to :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
+                    System.out.println("From :" + loginSrc + "[" + serverSrc + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
                 }
 
                 default -> { // Unsupported request, we end the connection with the client
@@ -367,6 +389,7 @@ public class ClientChatFusion {
             while (!requestQueue.isEmpty()) {
                 if (bufferOut.remaining() >= requestQueue.peek().bufferLength()) {
                     var poll = requestQueue.poll();
+                    System.out.println();
                     var encode = poll.encode();
                     bufferOut.put(encode);
                 }
@@ -460,6 +483,10 @@ public class ClientChatFusion {
 
         public void sendPublicMessage(String login, String message) {
             queueRequest(RequestFactory.publicMessage(serverName, login, message));
+        }
+
+        public void sendPrivateMessage(String serverDst, String loginSrc, String loginDst, String message) {
+            queueRequest(RequestFactory.privateMessage(serverName, loginSrc, serverDst, loginDst, message));
         }
     }
 }

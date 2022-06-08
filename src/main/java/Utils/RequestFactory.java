@@ -74,7 +74,7 @@ public class RequestFactory {
      * @return
      */
     public static Request privateMessage(String serverSrc, String serverDst, String loginSrc, String loginDst, String message) {
-        return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(loginDst), new StringChatFusion(message));
+        return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(serverDst), new StringChatFusion(loginDst), new StringChatFusion(message));
     }
 
     /**
