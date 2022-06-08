@@ -2,6 +2,7 @@ package main.java.client;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
+import main.java.Utils.Utils;
 import main.java.reader.Reader;
 import main.java.request.*;
 import main.java.request.Request.ReadingState;
@@ -239,72 +240,6 @@ public class ClientChatFusion {
                         return;
                     }
                 }
-
-                /*
-                switch (watcher) {
-                    case LOGIN_ACCEPTED -> {
-                        var status = stringReader.process(bufferIn);
-                        switch (status) {
-                            case DONE -> {
-                                serverName = stringReader.get();
-                                stringReader.reset();
-                                state = State.CONNECTED;
-                                watcher = OpCode.IDLE;
-                                System.out.println("\t" + "Connection established with server: " + serverName);
-                                return;
-                            }
-                            case ERROR -> {
-                                // Error with server login
-                                silentlyClose();
-                                return;
-                            }
-                            case REFILL -> {
-                                return;
-                            }
-                        }
-                    }
-                    case LOGIN_REFUSED -> {
-                        System.out.println("Connexion refused");
-                        silentlyClose();
-                    }
-                    case MESSAGE -> {
-                        var serverStatus = stringReader.process(bufferIn);
-                        switch (serverStatus) {
-                            case DONE -> {
-                                var status = messageReader.process(bufferIn);
-                                // Message printing process
-                                switch (status) {
-                                    case DONE -> {
-                                        var time = LocalDateTime.now();
-                                        System.out.println(messageReader.get().login() + "[" + stringReader.get() + "](" + time.getHour() + "h" + time.getMinute() + "): " + messageReader.get().msg());
-                                        messageReader.reset();
-                                        stringReader.reset();
-                                        watcher = OpCode.IDLE;
-                                        return;
-                                    }
-                                    case REFILL -> {
-                                        return;
-                                    }
-                                    case ERROR -> {
-                                        silentlyClose();
-                                        return;
-                                    }
-                                }
-                            }
-
-                            case ERROR -> {
-                                silentlyClose();
-                                return;
-                            }
-
-                            case REFILL -> {
-                                return;
-                            }
-                        }
-                    }
-                    default -> watcher = OpCode.IDLE;
-                }
-                */
             }
         }
 
