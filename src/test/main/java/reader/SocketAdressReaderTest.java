@@ -27,4 +27,9 @@ class SocketAdressReaderTest {
         assertEquals(Reader.ProcessStatus.DONE, sr.process(bb));
         assertEquals(expected, sr.get());
     }
+
+    @Test
+    public void mainTest(){
+        System.out.println((int) Math.ceil(16_000 / 5_000d));
+    }
 }

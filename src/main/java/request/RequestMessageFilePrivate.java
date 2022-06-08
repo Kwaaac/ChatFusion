@@ -38,7 +38,8 @@ public record RequestMessageFilePrivate(StringChatFusion serverSrc, StringChatFu
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(getOpCode().getOpCode()) // OpCode
+        return ByteBuffer.allocate(bufferLength())
+                .put(getOpCode().getOpCode()) // OpCode
                 .put(serverSrc.encode()) // server source
                 .put(loginSrc.encode()) // login source
                 .put(serverDst.encode()) // server destination

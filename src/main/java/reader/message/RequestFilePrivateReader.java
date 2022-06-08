@@ -70,6 +70,7 @@ public class RequestFilePrivateReader implements Reader<Request> {
                         }
                         case WAIT_BLOCK_SIZE -> {
                             blockSize = intReader.get();
+                            internalBuffer = ByteBuffer.allocate(blockSize);
                             intReader.reset();
                             state = State.WAIT_BLOCK;
                         }
