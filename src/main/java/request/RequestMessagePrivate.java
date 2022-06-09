@@ -31,12 +31,13 @@ public record RequestMessagePrivate(StringChatFusion serverSrc,
 
     @Override
     public int bufferLength() {
-        return 1 + Integer.BYTES * 5 + serverDst.bufferLength() + serverSrc.bufferLength() + loginDst.bufferLength() + loginSrc.bufferLength() + message.bufferLength();
+        return 1 + serverSrc.bufferLength() + loginSrc.bufferLength() + serverDst.bufferLength() + loginDst.bufferLength() + message.bufferLength();
     }
 
     @Override
     public ByteBuffer encode() {
-        return ByteBuffer.allocate(getOpCode().getOpCode())
+        return ByteBuffer.allocate(bufferLength())
+                .put(getOpCode().getOpCode())
                 .put(serverSrc.encode())
                 .put(loginSrc.encode())
                 .put(serverDst.encode())

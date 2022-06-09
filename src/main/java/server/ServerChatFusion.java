@@ -258,6 +258,31 @@ public class ServerChatFusion {
         }
     }
 
+    private void messagePrivate(Request request, SelectionKey sender, String serverDst, String loginDst) {
+        SelectionKey key;
+        var optClient = clientConnected.entrySet().stream().filter(entry -> entry.getValue().equals(loginDst)).findFirst();
+        if(optClient.isPresent()) {
+            key = optClient.get().getKey();
+            ((Context) key.attachment()).queueRequest(request);
+        }
+        else {
+            if (isLeader()) {
+                System.out.println(serverConnected.values());
+                var optServer = serverConnected.entrySet().stream().filter(entry -> entry.getValue().equals(serverDst)).findFirst();
+                System.out.println(serverDst);
+                if(optServer.isPresent()) {
+                    key = optServer.get().getKey();
+                    ((Context) key.attachment()).queueRequest(request);
+                }
+                return;
+            }
+            if (!sender.equals(leader.key)) {
+                leader.queueRequest(request);
+            }
+        }
+    }
+
+
     public void addClient(String login, SelectionKey key) {
         var refused = login.getBytes(StandardCharsets.UTF_8).length > 30;
         var client = (Context) key.attachment();
@@ -423,6 +448,10 @@ public class ServerChatFusion {
 
                 case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
 
+
+                case RequestMessagePrivate requestMessagePrivate -> {
+                    server.messagePrivate(requestMessagePrivate, key, requestMessagePrivate.serverDst().string(), requestMessagePrivate.loginDst().string()); }
+
                 case RequestMessageFilePrivate requestMessageFilePrivate -> {
                     var serverDst = requestMessageFilePrivate.serverDst().string();
                     if (server.serverName.equals(serverDst)) {
@@ -553,7 +582,6 @@ public class ServerChatFusion {
          * Try to fill bufferOut from the message queue
          */
         private void processOut() {
-
             while (!requestQueue.isEmpty()) {
                 if (bufferOut.remaining() < requestQueue.peek().bufferLength()) {
                     return;

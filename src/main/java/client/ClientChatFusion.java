@@ -149,7 +149,6 @@ public class ClientChatFusion {
                 }
                 var serverDst = commands[1];
                 var loginDst = commands[2];
-                System.out.println("transfertDir = " + transfertDir);
                 var filepath = Path.of(transfertDir, commands[3]);
                 try {
                     var fileChatFusion = FileChatFusion.initToSend(filepath);
@@ -163,9 +162,15 @@ public class ClientChatFusion {
                     System.out.println(e.getMessage());
                 }
             }
-            case String msgString && msgString.startsWith("/w") ->
-                    System.out.println("TODO"); // TODO uniqueContext.sendPrivateMessage(...);
+            case String msgString && msgString.startsWith("/w") ->{
+                String[] strings = msgString.split(" ", 4);
+                var command = strings[0];
+                var serverDst = strings[1];
+                var loginDst = strings[2];
+                var message = strings[3];
+                uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message);
 
+            }
             default -> uniqueContext.sendPublicMessage(login, msg);
         }
     }
@@ -321,16 +326,17 @@ public class ClientChatFusion {
                 }
 
                 case RequestMessagePrivate requestMessagePrivate -> {
-                    var serverSrc = requestMessagePrivate.serverSrc();
-                    var serverDst = requestMessagePrivate.serverDst();
-                    var loginSrc = requestMessagePrivate.loginSrc();
-                    var loginDst = requestMessagePrivate.loginDst();
-                    var msg = requestMessagePrivate.message();
+                    var serverSrc = requestMessagePrivate.serverSrc().string();
+                    var serverDst = requestMessagePrivate.serverDst().string();
+                    var loginSrc = requestMessagePrivate.loginSrc().string();
+                    var loginDst = requestMessagePrivate.loginDst().string();
+                    var msg = requestMessagePrivate.message().string();
                     var time = LocalDateTime.now();
 
                     System.out.println("From :" + loginSrc + "[" + serverSrc + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
-                }
 
+                }
+                
                 case RequestMessageFilePrivate requestMessageFilePrivate -> {
                     var filename = requestMessageFilePrivate.filename().string();
                     var file = mapFile.getOrDefault(filename, FileChatFusion.initToReceive(Path.of(transfertDir, filename), requestMessageFilePrivate.nbBlocksMax()));
@@ -383,7 +389,7 @@ public class ClientChatFusion {
             }
 
             while (!fileRequestQueue.isEmpty()) {
-                // inferior to 6_000 byte to prioritise other message than file
+                // inferior to 6_000 byte to prioritise other request than file
                 if (bufferOut.remaining() < 6_000 || bufferOut.remaining() < fileRequestQueue.peek().bufferLength()) {
                     return;
                 }
@@ -484,8 +490,14 @@ public class ClientChatFusion {
             queueRequest(RequestFactory.publicMessage(serverName, login, message));
         }
 
+
+        public void sendPrivateMessage(String serverDst, String loginSrc, String loginDst, String message) {
+            queueRequest(RequestFactory.privateMessage(serverName, loginSrc, serverDst, loginDst, message));
+        }
+          
         public void sendFilePrivate(String loginSrc, String serverDst, String loginDst, String filename, int nbBlockMax, int blockSize, byte[] block) {
             queueFileToSend(RequestFactory.privateFile(serverName, loginSrc, serverDst, loginDst, filename, nbBlockMax, blockSize, block));
+
         }
     }
 }
