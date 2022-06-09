@@ -77,6 +77,17 @@ public class RequestFactory {
         return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(loginDst), new StringChatFusion(message));
     }
 
+
+    public static Request privateFile(String strServerSrc, String strServerDst, String strLoginSrc, String strLoginDst, String strFilename, int nbBlocksMax, int blockSize, byte[] block) {
+        var serverSrc = new StringChatFusion(strServerSrc);
+        var serverDst = new StringChatFusion(strServerDst);
+        var loginSrc = new StringChatFusion(strLoginSrc);
+        var loginDst = new StringChatFusion(strLoginDst);
+        var filename = new StringChatFusion(strFilename);
+
+        return new RequestMessageFilePrivate(serverSrc, serverDst, loginSrc, loginDst, filename, nbBlocksMax, blockSize, block);
+    }
+
     /**
      * TODO
      *
