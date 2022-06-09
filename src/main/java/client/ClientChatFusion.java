@@ -124,7 +124,7 @@ public class ClientChatFusion {
         System.out.println("""
                 List of commands:
                     - /help -> print this usage section
-                    - /w -> whisper a private message to a client
+                    - /w [server_destination_name] [login_client] [message] -> whisper a private message to a client
                     - /wf [server_destination_name] [login_client] [filename_in_the_transfert_directory]-> whisper a private file to a client
                 """);
     }
@@ -164,10 +164,17 @@ public class ClientChatFusion {
             }
             case String msgString && msgString.startsWith("/w") ->{
                 String[] strings = msgString.split(" ", 4);
-                var command = strings[0];
+                if (strings.length != 4) {
+                    System.out.println("Wrong usage of command /w");
+                    printConsoleUsage();
+                    return;
+                }
                 var serverDst = strings[1];
                 var loginDst = strings[2];
                 var message = strings[3];
+                var time = LocalDateTime.now();
+
+                System.out.println("To :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + message);
                 uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message);
 
             }
@@ -299,7 +306,6 @@ public class ClientChatFusion {
         }
 
         private void requestHandler(Request request) throws IOException {
-            logger.info(request.toString());
             switch (request) {
 
                 case RequestLoginAccepted requestLoginAccepted -> {

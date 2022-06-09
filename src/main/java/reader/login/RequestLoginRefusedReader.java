@@ -9,6 +9,12 @@ import java.nio.ByteBuffer;
 public class RequestLoginRefusedReader implements Reader<Request> {
     private State state = State.WAIT;
 
+    /**
+     * Retrieves datas from the bytebuffer and stores them
+     * @param bb the bytebuffer containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         if (state == State.DONE) {
@@ -19,6 +25,11 @@ public class RequestLoginRefusedReader implements Reader<Request> {
         return ProcessStatus.DONE;
     }
 
+    /**
+     * Get the request associated with the reader
+     * @return the request associated with the reader
+     * @throws IllegalStateException if the state of the recovery isn't DONE or the serverName is null
+     */
     @Override
     public Request get() {
         if (state != State.DONE) {
@@ -28,11 +39,17 @@ public class RequestLoginRefusedReader implements Reader<Request> {
         return RequestFactory.loginRefused();
     }
 
+    /**
+     * Reset the reader to make it reusable
+     */
     @Override
     public void reset() {
         state = State.WAIT;
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT
     }

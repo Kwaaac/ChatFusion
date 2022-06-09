@@ -293,6 +293,7 @@ public class ServerChatFusion {
         }
 
         clientConnected.putIfAbsent(key, login);
+        logger.info("Client " + login + " connected");
         // send connection accept
         client.queueRequest(RequestFactory.loginAccepted(serverName));
     }
@@ -330,7 +331,7 @@ public class ServerChatFusion {
             return;
         }
 
-        System.out.println("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
+        logger.info("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
 
         String[] names = this.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
         ((Context) keyServer.attachment()).queueRequest(RequestFactory.fusionInitOK(this.serverName, (InetSocketAddress) this.serverSocketChannel.getLocalAddress(), this.serverConnected.size(), names));
@@ -528,7 +529,6 @@ public class ServerChatFusion {
         }
 
         private void requestHandler(Request request) throws IOException {
-            logger.info(request.toString());
             switch (request) {
                 case RequestLoginAnonymous requestLoginAnonymous ->
                         server.addClient(requestLoginAnonymous.login().string(), key);
@@ -551,7 +551,7 @@ public class ServerChatFusion {
                 }
 
                 case RequestFusionInitOK requestFusionInitOK -> {
-                    System.out.println("Fusions Init OK From: " + requestFusionInitOK.serverName().string() + ":" + requestFusionInitOK.address().address() + " :: " + requestFusionInitOK.nbMembers() + " :: " + requestFusionInitOK.names());
+                    logger.info("Fusions Init OK From: " + requestFusionInitOK.serverName().string() + ":" + requestFusionInitOK.address().address() + " :: " + requestFusionInitOK.nbMembers() + " :: " + requestFusionInitOK.names());
                     server.updateLeader(requestFusionInitOK.serverName().string(), requestFusionInitOK.address().address(), key);
                 }
 

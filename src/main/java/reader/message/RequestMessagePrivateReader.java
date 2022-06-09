@@ -16,6 +16,12 @@ public class RequestMessagePrivateReader implements Reader<Request> {
     private String message;
     private State state = State.WAIT_SERVER_SRC;
 
+    /**
+     * Retrieves datas from the bytebuffer and stores them
+     * @param bb the bytebuffer containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         if (this.state == State.DONE || this.state == State.ERROR) {
@@ -66,6 +72,11 @@ public class RequestMessagePrivateReader implements Reader<Request> {
         }
     }
 
+    /**
+     * Get the request associated with the reader
+     * @return the request associated with the reader
+     * @throws IllegalStateException if the state of the recovery isn't DONE or the serverName is null
+     */
     @Override
     public Request get() {
         if (this.state != State.DONE) {
@@ -75,12 +86,18 @@ public class RequestMessagePrivateReader implements Reader<Request> {
         }
     }
 
+    /**
+     * Reset the reader to make it reusable
+     */
     @Override
     public void reset() {
         this.state = State.WAIT_SERVER_SRC;
         stringReader.reset();
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT_SERVER_SRC, WAIT_SERVER_DST, WAIT_LOGIN_SRC, WAIT_LOGIN_DST, WAIT_MSG, ERROR
     }
