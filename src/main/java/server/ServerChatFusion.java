@@ -167,10 +167,7 @@ public class ServerChatFusion {
             actualConnection.silentlyClose();
         }
 
-        actualConnectionSocketChannel = SocketChannel.open();
-        actualConnectionSocketChannel.configureBlocking(false);
-
-        actualConnectionSocketChannel.connect(remoteServer);
+        updateConnection(actualConnectionSocketChannel, remoteServer);
 
         var key = actualConnectionSocketChannel.register(selector, SelectionKey.OP_CONNECT);
         actualConnection = new Context(this, key);
@@ -228,11 +225,9 @@ public class ServerChatFusion {
             System.out.println("\tKey for Client ");
         }
         var serverRemoved = serverConnected.remove(key);
-        if(serverRemoved != null)
-            serverNameConnected.remove(serverRemoved);
+        if (serverRemoved != null) serverNameConnected.remove(serverRemoved);
         var clientRemoved = clientConnected.remove(key);
-        if(clientRemoved != null)
-            clientNameConnected.remove(clientRemoved);
+        if (clientRemoved != null) clientNameConnected.remove(clientRemoved);
 
         try {
             sc.close();
@@ -258,19 +253,20 @@ public class ServerChatFusion {
         }
     }
 
-    private void messagePrivate(Request request, SelectionKey sender, String serverDst, String loginDst) {
+    private void messagePrivate(RequestMessagePrivate request, SelectionKey sender) {
+        String serverDst = request.serverDst().string();
+        String loginDst = request.loginDst().string();
         SelectionKey key;
         var optClient = clientConnected.entrySet().stream().filter(entry -> entry.getValue().equals(loginDst)).findFirst();
-        if(optClient.isPresent()) {
+        if (optClient.isPresent()) {
             key = optClient.get().getKey();
             ((Context) key.attachment()).queueRequest(request);
-        }
-        else {
+        } else {
             if (isLeader()) {
                 System.out.println(serverConnected.values());
                 var optServer = serverConnected.entrySet().stream().filter(entry -> entry.getValue().equals(serverDst)).findFirst();
                 System.out.println(serverDst);
-                if(optServer.isPresent()) {
+                if (optServer.isPresent()) {
                     key = optServer.get().getKey();
                     ((Context) key.attachment()).queueRequest(request);
                 }
@@ -299,6 +295,128 @@ public class ServerChatFusion {
         clientConnected.putIfAbsent(key, login);
         // send connection accept
         client.queueRequest(RequestFactory.loginAccepted(serverName));
+    }
+
+    private void redirectFilePrivate(RequestMessageFilePrivate requestMessageFilePrivate) {
+        var serverDst = requestMessageFilePrivate.serverDst().string();
+        if (serverName.equals(serverDst)) {
+            var client = clientNameConnected.get(requestMessageFilePrivate.loginDst().string());
+            // Request ignored if the client doest exist
+            if (client != null) {
+                ((Context) client.attachment()).queueRequest(requestMessageFilePrivate);
+            }
+            return;
+        }
+
+
+        if (isLeader()) {
+            var serverKey = this.serverNameConnected.get(serverDst);
+            // ignored if the server doest exist
+            if (serverKey != null) {
+                ((Context) serverKey.attachment()).queueRequest(requestMessageFilePrivate);
+            }
+            return;
+        }
+
+        this.leader.queueRequest(requestMessageFilePrivate);
+    }
+
+    private void handleFusionInit(RequestFusionInit requestFusionInit, SelectionKey keyServer) throws IOException {
+        var otherServerName = requestFusionInit.serverName().string();
+        var otherServerAddress = requestFusionInit.address().address();
+
+        if (this.serverName.equals(otherServerName) || this.serverNameConnected.contains(otherServerName)) {
+            ((Context) keyServer.attachment()).queueRequest(RequestFactory.fusionInitKO());
+            return;
+        }
+
+        System.out.println("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
+
+        String[] names = this.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
+        ((Context) keyServer.attachment()).queueRequest(RequestFactory.fusionInitOK(this.serverName, (InetSocketAddress) this.serverSocketChannel.getLocalAddress(), this.serverConnected.size(), names));
+
+        updateLeader(otherServerName, otherServerAddress, keyServer);
+    }
+
+    private void handleFusionRequest(RequestFusionRequest requestFusionRequest, SelectionKey serverKey) {
+        if (this.fusionState == FusionState.PENDING_FUSION) {
+            ((Context) serverKey.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
+            return;
+        }
+        var address = requestFusionRequest.address().address();
+        var host = address.getHostName();
+        var port = address.getPort();
+        this.stateController.sendCommand(host + " " + port, this.selector);
+        ((Context) serverKey.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
+    }
+
+    /**
+     * If the given server becomes the new leader, then update every client and the leader of the actual server
+     * Otherwise, do nothing
+     *
+     * @param otherServerName    given sevrer
+     * @param otherServerAddress address of the given server
+     * @param otherServerKey     SelectionKey of the otherServer
+     */
+    private void updateLeader(String otherServerName, InetSocketAddress otherServerAddress, SelectionKey otherServerKey) throws IOException {
+        if (otherServerName.compareTo(serverName) < 0) {
+            var newLeader = (Context) otherServerKey.attachment();
+            leaderSocketChannel = actualConnectionSocketChannel;
+            setLeader(newLeader);
+            serverConnected.keySet().stream().map(key -> (Context) otherServerKey.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(otherServerAddress)));
+            serverConnected.clear();
+            serverNameConnected.clear();
+            fusionState = FusionState.IDLE;
+            System.out.println("We change leader to: " + otherServerName);
+        } else {
+            serverConnected.put(otherServerKey, otherServerName);
+            serverNameConnected.put(otherServerName, otherServerKey);
+            System.out.println("We stay leader");
+        }
+
+        actualConnectionSocketChannel = SocketChannel.open();
+        actualConnectionSocketChannel.configureBlocking(false);
+        actualConnection = null;
+    }
+
+    private void handleForwardingFusion(RequestFusionInitFWD requestFusionInitFWD) throws IOException {
+        var leaderAddress = requestFusionInitFWD.address().address();
+
+        updateConnection(actualConnectionSocketChannel, leaderAddress);
+
+        var key = actualConnectionSocketChannel.register(selector, SelectionKey.OP_CONNECT);
+        actualConnection = new Context(this, key);
+        key.attach(actualConnection);
+
+        String[] names = serverNameConnected.keySet().stream().toList().toArray(new String[0]);
+        actualConnection.queueRequest(RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names));
+    }
+
+    private void updateConnection(SocketChannel sc, InetSocketAddress address) throws IOException {
+        actualConnectionSocketChannel = SocketChannel.open();
+        actualConnectionSocketChannel.configureBlocking(false);
+        actualConnectionSocketChannel.connect(address);
+    }
+
+    private void handleChangeLeader(RequestFusionChangeLeader fusionChangeLeader) throws IOException {
+        updateConnection(leaderSocketChannel, fusionChangeLeader.address().address());
+
+        var key = leaderSocketChannel.register(selector, SelectionKey.OP_CONNECT);
+        leader = new Context(this, key);
+        key.attach(leader);
+
+        leader.queueRequest(RequestFactory.fusionMerge(serverName));
+    }
+
+    private void handleFusionMerge(RequestFusionMerge requestFusionMerge, SelectionKey serverKey) {
+        if (this.memberAddList.remove(requestFusionMerge.serverName().string())) {
+            this.serverConnected.put(serverKey, requestFusionMerge.serverName().string());
+            this.serverNameConnected.put(requestFusionMerge.serverName().string(), serverKey);
+        }
+
+        if (this.memberAddList.isEmpty()) {
+            this.fusionState = FusionState.IDLE;
+        }
     }
 
     private enum State {
@@ -361,34 +479,6 @@ public class ServerChatFusion {
             this.server = server;
         }
 
-        /**
-         * If the given server becomes the new leader, then update every client and the leader of the actual server
-         * Otherwise, do nothing
-         *
-         * @param otherServerName    given sevrer
-         * @param otherServerAddress address of the given server
-         */
-        private void updateLeader(String otherServerName, InetSocketAddress otherServerAddress) throws IOException {
-            if (otherServerName.compareTo(server.serverName) < 0) {
-                var newLeader = (Context) key.attachment();
-                server.leaderSocketChannel = server.actualConnectionSocketChannel;
-                server.setLeader(newLeader);
-                server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(otherServerAddress)));
-                server.serverConnected.clear();
-                server.serverNameConnected.clear();
-                server.fusionState = FusionState.IDLE;
-                System.out.println("We change leader to: " + otherServerName);
-            } else {
-                server.serverConnected.put(key, otherServerName);
-                server.serverNameConnected.put(otherServerName, key);
-                System.out.println("We stay leader");
-            }
-
-            server.actualConnectionSocketChannel = SocketChannel.open();
-            server.actualConnectionSocketChannel.configureBlocking(false);
-            server.actualConnection = null;
-        }
-
 
         /**
          * Process the content of bufferIn
@@ -448,50 +538,12 @@ public class ServerChatFusion {
 
                 case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
 
+                case RequestMessagePrivate requestMessagePrivate -> server.messagePrivate(requestMessagePrivate, key);
 
-                case RequestMessagePrivate requestMessagePrivate -> {
-                    server.messagePrivate(requestMessagePrivate, key, requestMessagePrivate.serverDst().string(), requestMessagePrivate.loginDst().string()); }
+                case RequestMessageFilePrivate requestMessageFilePrivate ->
+                        server.redirectFilePrivate(requestMessageFilePrivate);
 
-                case RequestMessageFilePrivate requestMessageFilePrivate -> {
-                    var serverDst = requestMessageFilePrivate.serverDst().string();
-                    if (server.serverName.equals(serverDst)) {
-                        var client = server.clientNameConnected.get(requestMessageFilePrivate.loginDst().string());
-                        // Request ignored if the client doest exist
-                        if (client != null) {
-                            ((Context) client.attachment()).queueRequest(requestMessageFilePrivate);
-                        }
-                        return;
-                    }
-
-
-                    if (server.isLeader()) {
-                        var serverKey = server.serverNameConnected.get(serverDst);
-                        // ignored if the server doest exist
-                        if (serverKey != null) {
-                            ((Context) serverKey.attachment()).queueRequest(requestMessageFilePrivate);
-                        }
-                        return;
-                    }
-
-                    server.leader.queueRequest(requestMessageFilePrivate);
-                }
-
-                case RequestFusionInit requestFusionInit -> {
-                    var otherServerName = requestFusionInit.serverName().string();
-                    var otherServerAddress = requestFusionInit.address().address();
-
-                    if (server.serverName.equals(otherServerName) || server.serverNameConnected.contains(otherServerName)) {
-                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
-                        return;
-                    }
-
-                    System.out.println("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
-
-                    String[] names = server.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
-                    ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
-
-                    updateLeader(otherServerName, otherServerAddress);
-                }
+                case RequestFusionInit requestFusionInit -> server.handleFusionInit(requestFusionInit, key);
 
                 case RequestFusionInitKO ignored -> {
                     logger.info("Fusion denied !");
@@ -500,36 +552,12 @@ public class ServerChatFusion {
 
                 case RequestFusionInitOK requestFusionInitOK -> {
                     System.out.println("Fusions Init OK From: " + requestFusionInitOK.serverName().string() + ":" + requestFusionInitOK.address().address() + " :: " + requestFusionInitOK.nbMembers() + " :: " + requestFusionInitOK.names());
-                    updateLeader(requestFusionInitOK.serverName().string(), requestFusionInitOK.address().address());
+                    server.updateLeader(requestFusionInitOK.serverName().string(), requestFusionInitOK.address().address(), key);
                 }
 
-                case RequestFusionRequest requestFusionRequest -> {
-                    if (server.fusionState == FusionState.PENDING_FUSION) {
-                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
-                        return;
-                    }
-                    var address = requestFusionRequest.address().address();
-                    var host = address.getHostName();
-                    var port = address.getPort();
-                    server.stateController.sendCommand(host + " " + port, server.selector);
-                    ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestAccepted());
-                }
+                case RequestFusionRequest requestFusionRequest -> server.handleFusionRequest(requestFusionRequest, key);
 
-                case RequestFusionInitFWD requestFusionInitFWD -> {
-                    var leaderAddress = requestFusionInitFWD.address().address();
-
-                    server.actualConnectionSocketChannel = SocketChannel.open();
-                    server.actualConnectionSocketChannel.configureBlocking(false);
-
-                    server.actualConnectionSocketChannel.connect(leaderAddress);
-
-                    var key = server.actualConnectionSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
-                    server.actualConnection = new Context(server, key);
-                    key.attach(server.actualConnection);
-
-                    String[] names = server.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
-                    server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
-                }
+                case RequestFusionInitFWD requestFusionInitFWD -> server.handleForwardingFusion(requestFusionInitFWD);
 
                 case RequestFusionRequestResponse requestFusionRequestResponse -> {
                     if (requestFusionRequestResponse.status() == 0)
@@ -537,27 +565,10 @@ public class ServerChatFusion {
                     else System.out.println("Fusion has been accepted by the leader");
                 }
 
-                case RequestFusionChangeLeader fusionChangeLeader -> {
-                    server.leaderSocketChannel = SocketChannel.open();
-                    server.leaderSocketChannel.configureBlocking(false);
-                    server.leaderSocketChannel.connect(fusionChangeLeader.address().address());
-
-                    var key = server.leaderSocketChannel.register(server.selector, SelectionKey.OP_CONNECT);
-                    server.leader = new Context(server, key);
-                    key.attach(server.leader);
-
-                    server.leader.queueRequest(RequestFactory.fusionMerge(server.serverName));
-                }
+                case RequestFusionChangeLeader fusionChangeLeader -> server.handleChangeLeader(fusionChangeLeader);
 
                 case RequestFusionMerge requestFusionMerge -> {
-                    if (server.memberAddList.remove(requestFusionMerge.serverName().string())) {
-                        server.serverConnected.put(key, requestFusionMerge.serverName().string());
-                        server.serverNameConnected.put(requestFusionMerge.serverName().string(), key);
-                    }
-
-                    if (server.memberAddList.isEmpty()) {
-                        server.fusionState = FusionState.IDLE;
-                    }
+                    server.handleFusionMerge(requestFusionMerge, key);
                 }
 
                 default -> { // Unsupported request, we end the connection with the client
