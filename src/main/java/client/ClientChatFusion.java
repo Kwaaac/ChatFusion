@@ -2,6 +2,7 @@ package main.java.client;
 
 import main.java.OpCode;
 import main.java.Utils.RequestFactory;
+import main.java.exceptions.FileChatFusionException;
 import main.java.reader.Reader;
 import main.java.request.*;
 import main.java.request.Request.ReadingState;
@@ -34,9 +35,9 @@ public class ClientChatFusion {
     private final InetSocketAddress serverAddress;
     private final String login;
     private final Thread console;
+    private final String transfertDir;
     private String password;
     private Context uniqueContext;
-    private String transfertDir;
 
     public ClientChatFusion(String login, InetSocketAddress serverAddress, String transfertDir) throws IOException {
         this.serverAddress = serverAddress;
@@ -141,18 +142,25 @@ public class ClientChatFusion {
             case String msgString && msgString.startsWith("/help") -> printConsoleUsage();
             case String msgString && msgString.startsWith("/wf") -> {
                 var commands = msgString.split(" ");
-                System.out.println("commands = " + Arrays.toString(commands));
+                if (commands.length != 4) {
+                    System.out.println("Wrong usage of command /wf");
+                    printConsoleUsage();
+                    return;
+                }
                 var serverDst = commands[1];
                 var loginDst = commands[2];
                 System.out.println("transfertDir = " + transfertDir);
                 var filepath = Path.of(transfertDir, commands[3]);
+                try {
+                    var fileChatFusion = FileChatFusion.initToSend(filepath);
 
-                var fileChatFusion = FileChatFusion.initToSend(filepath);
-                var nbBlocksMax = fileChatFusion.getNbBlocksMax();
-                for (int i = 0; i < nbBlocksMax; i++) {
-                    var block = fileChatFusion.write();
-                    uniqueContext.sendFilePrivate(login, serverDst, loginDst, filepath.getFileName().toString(), nbBlocksMax, block.length, block);
-
+                    var nbBlocksMax = fileChatFusion.getNbBlocksMax();
+                    for (int i = 0; i < nbBlocksMax; i++) {
+                        var block = fileChatFusion.write();
+                        uniqueContext.sendFilePrivate(login, serverDst, loginDst, filepath.getFileName().toString(), nbBlocksMax, block.length, block);
+                    }
+                } catch (FileChatFusionException e) {
+                    System.out.println(e.getMessage());
                 }
             }
             case String msgString && msgString.startsWith("/w") ->

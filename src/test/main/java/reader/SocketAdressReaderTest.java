@@ -1,11 +1,13 @@
 package test.main.java.reader;
 
+import main.java.Utils.Utils;
 import main.java.reader.InetSocketAddressReader;
 import main.java.reader.Reader;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -30,6 +32,9 @@ class SocketAdressReaderTest {
 
     @Test
     public void mainTest(){
-        System.out.println((int) Math.ceil(16_000 / 5_000d));
+        Path path = Utils.getPathToDownloadWithFileName("bob.txt");
+        System.out.println("path = " + path);
+        System.out.println("path.getRoot() = " + path.getRoot());
+        System.out.println("path.getParent() = " + path.getParent());
     }
 }

@@ -1,5 +1,7 @@
 package main.java.client;
 
+import main.java.exceptions.FileChatFusionException;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -28,7 +30,7 @@ public final class FileChatFusion {
      */
     public static FileChatFusion initToSend(Path filePath) throws IOException {
         if (!Files.isReadable(filePath)) {
-            throw new IllegalArgumentException("Wrong file path");
+            throw new FileChatFusionException("Wrong file path");
         }
 
         var content = Files.readAllBytes(filePath);
@@ -77,7 +79,7 @@ public final class FileChatFusion {
      */
     public byte[] write() {
         if (state == State.READ) {
-            throw new IllegalStateException();
+            throw new FileChatFusionException("Method prohibited");
         }
         var delta = Math.min(content.remaining(), 5_000);
         var oldLimit = content.limit();
@@ -94,7 +96,7 @@ public final class FileChatFusion {
 
     public boolean readUntilWriteAvailable(byte[] block, String loginSrc, String serverNameSrc) throws IOException {
         if (state == State.WRITE) {
-            throw new IllegalStateException();
+            throw new FileChatFusionException("Method prohibited");
         }
         content.put(block);
         nbBlockCurrent++;
