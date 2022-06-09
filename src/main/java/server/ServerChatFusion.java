@@ -20,7 +20,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ServerChatFusion {
-    private static final int BUFFER_SIZE = 4048;
+    private static final int BUFFER_SIZE = 8096;
     private static final Logger logger = Logger.getLogger(ServerChatFusion.class.getName());
     private static final long TIMEOUT = 60_000;
     private final String serverName;
@@ -29,15 +29,16 @@ public class ServerChatFusion {
     private final Thread console;
     private final StateFusionController stateController = new StateFusionController();
     private final HashMap<SelectionKey, String> clientConnected = new HashMap<>();
+
+    private final HashMap<String, SelectionKey> clientNameConnected = new HashMap<>();
     private final ConcurrentHashMap<SelectionKey, String> serverConnected = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, SelectionKey> serverNameConnected = new ConcurrentHashMap<>();
     private final List<String> memberAddList = new ArrayList<>();
     private SocketChannel leaderSocketChannel = SocketChannel.open();
     private SocketChannel actualConnectionSocketChannel = SocketChannel.open();
     private boolean isLeader = true;
     private FusionState fusionState = FusionState.IDLE;
     private Context leader;
-
-    private InetSocketAddress leaderAddress;
     private Context actualConnection;
 
     public ServerChatFusion(String serverName, InetSocketAddress socketAddress) throws IOException {
@@ -88,7 +89,18 @@ public class ServerChatFusion {
         return Objects.hash(serverSocketChannel, selector, console, stateController, leader, clientConnected);
     }
 
+    private void printConsoleUsage() {
+        System.out.println("""
+                List of commands:
+                    - INFO -> Print the number of server and client connected
+                    - SHUTDOWN -> Stop any server or client to connect to this server
+                    - SHUTDOWNNOW -> End the server and its connections
+                    - FUSION [server_address] [port] ->  (FUSION 127.0.0.1 7777) - Ask a fusion to the server corresponding to the given address and port
+                """);
+    }
+
     private void consoleRun() {
+
         try (var scanner = new Scanner(System.in)) {
             while (scanner.hasNextLine()) {
                 var msg = scanner.nextLine();
@@ -101,7 +113,9 @@ public class ServerChatFusion {
                         stateController.updateState(State.SHUTDOWN);
                         selector.wakeup();
                     }
-                    case String msgString && msgString.startsWith("FUSION") ->
+                    case "/help" -> printConsoleUsage();
+
+                    case String msgString && (msgString.startsWith("FUSION")) ->
                             stateController.sendCommand(msgString.substring(7), selector);
 
                     default -> {
@@ -162,9 +176,10 @@ public class ServerChatFusion {
         actualConnection = new Context(this, key);
         key.attach(actualConnection);
 
-        String[] names = serverConnected.values().stream().toList().toArray(new String[0]);
+        String[] names = serverNameConnected.keySet().stream().toList().toArray(new String[0]);
         var request = RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names);
         ((Context) key.attachment()).queueRequest(request);
+        fusionState = FusionState.PENDING_FUSION;
     }
 
     private void treatKey(SelectionKey key) {
@@ -212,8 +227,13 @@ public class ServerChatFusion {
         } else {
             System.out.println("\tKey for Client ");
         }
-        serverConnected.remove(key);
-        clientConnected.remove(key);
+        var serverRemoved = serverConnected.remove(key);
+        if(serverRemoved != null)
+            serverNameConnected.remove(serverRemoved);
+        var clientRemoved = clientConnected.remove(key);
+        if(clientRemoved != null)
+            clientNameConnected.remove(clientRemoved);
+
         try {
             sc.close();
         } catch (IOException e) {
@@ -267,7 +287,7 @@ public class ServerChatFusion {
         var refused = login.getBytes(StandardCharsets.UTF_8).length > 30;
         var client = (Context) key.attachment();
         if (!refused) {
-            refused = (clientConnected.putIfAbsent(key, login) != null);
+            refused = (clientNameConnected.put(login, key) != null);
         }
 
         if (refused) {
@@ -276,6 +296,7 @@ public class ServerChatFusion {
             return;
         }
 
+        clientConnected.putIfAbsent(key, login);
         // send connection accept
         client.queueRequest(RequestFactory.loginAccepted(serverName));
     }
@@ -352,13 +373,14 @@ public class ServerChatFusion {
                 var newLeader = (Context) key.attachment();
                 server.leaderSocketChannel = server.actualConnectionSocketChannel;
                 server.setLeader(newLeader);
-                server.leaderAddress = otherServerAddress;
                 server.serverConnected.keySet().stream().map(key -> (Context) key.attachment()).forEach(server -> server.queueRequest(RequestFactory.fusionChangeLeader(otherServerAddress)));
                 server.serverConnected.clear();
+                server.serverNameConnected.clear();
                 server.fusionState = FusionState.IDLE;
                 System.out.println("We change leader to: " + otherServerName);
             } else {
                 server.serverConnected.put(key, otherServerName);
+                server.serverNameConnected.put(otherServerName, key);
                 System.out.println("We stay leader");
             }
 
@@ -426,24 +448,46 @@ public class ServerChatFusion {
 
                 case RequestMessagePublic requestMessagePublic -> server.broadcast(requestMessagePublic, key);
 
+
                 case RequestMessagePrivate requestMessagePrivate -> {
                     server.messagePrivate(requestMessagePrivate, key, requestMessagePrivate.serverDst().string(), requestMessagePrivate.loginDst().string()); }
 
-                case RequestMessageFilePrivate requestMessageFilePrivate ->
-                        System.out.println("requestMessageFilePrivate");
+                case RequestMessageFilePrivate requestMessageFilePrivate -> {
+                    var serverDst = requestMessageFilePrivate.serverDst().string();
+                    if (server.serverName.equals(serverDst)) {
+                        var client = server.clientNameConnected.get(requestMessageFilePrivate.loginDst().string());
+                        // Request ignored if the client doest exist
+                        if (client != null) {
+                            ((Context) client.attachment()).queueRequest(requestMessageFilePrivate);
+                        }
+                        return;
+                    }
+
+
+                    if (server.isLeader()) {
+                        var serverKey = server.serverNameConnected.get(serverDst);
+                        // ignored if the server doest exist
+                        if (serverKey != null) {
+                            ((Context) serverKey.attachment()).queueRequest(requestMessageFilePrivate);
+                        }
+                        return;
+                    }
+
+                    server.leader.queueRequest(requestMessageFilePrivate);
+                }
 
                 case RequestFusionInit requestFusionInit -> {
                     var otherServerName = requestFusionInit.serverName().string();
                     var otherServerAddress = requestFusionInit.address().address();
 
-                    if (server.serverName.equals(otherServerName) || server.serverConnected.containsValue(otherServerName)) {
+                    if (server.serverName.equals(otherServerName) || server.serverNameConnected.contains(otherServerName)) {
                         ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitKO());
                         return;
                     }
 
                     System.out.println("Fusion accepted with: " + otherServerName + ":" + otherServerAddress + " :: " + requestFusionInit.nbMembers() + " :: " + requestFusionInit.names());
 
-                    String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                    String[] names = server.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
                     ((Context) key.attachment()).queueRequest(RequestFactory.fusionInitOK(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
 
                     updateLeader(otherServerName, otherServerAddress);
@@ -460,6 +504,10 @@ public class ServerChatFusion {
                 }
 
                 case RequestFusionRequest requestFusionRequest -> {
+                    if (server.fusionState == FusionState.PENDING_FUSION) {
+                        ((Context) key.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
+                        return;
+                    }
                     var address = requestFusionRequest.address().address();
                     var host = address.getHostName();
                     var port = address.getPort();
@@ -479,7 +527,7 @@ public class ServerChatFusion {
                     server.actualConnection = new Context(server, key);
                     key.attach(server.actualConnection);
 
-                    String[] names = server.serverConnected.values().stream().toList().toArray(new String[0]);
+                    String[] names = server.serverNameConnected.keySet().stream().toList().toArray(new String[0]);
                     server.actualConnection.queueRequest(RequestFactory.fusionInit(server.serverName, (InetSocketAddress) server.serverSocketChannel.getLocalAddress(), server.serverConnected.size(), names));
                 }
 
@@ -504,6 +552,7 @@ public class ServerChatFusion {
                 case RequestFusionMerge requestFusionMerge -> {
                     if (server.memberAddList.remove(requestFusionMerge.serverName().string())) {
                         server.serverConnected.put(key, requestFusionMerge.serverName().string());
+                        server.serverNameConnected.put(requestFusionMerge.serverName().string(), key);
                     }
 
                     if (server.memberAddList.isEmpty()) {
@@ -534,19 +583,19 @@ public class ServerChatFusion {
          */
         private void processOut() {
             while (!requestQueue.isEmpty()) {
-                var request = requestQueue.peek();
-                if (bufferOut.remaining() >= request.bufferLength()) {
-                    request = requestQueue.pop();
-                    // If there is a fusion request while the server is pending a fusion,
-                    // then it's dismissed waiting for the current fusion to finish by putting
-                    // the request to the last request of the queue
-                    /*
-                    if (request.code() == OpCode.FUSION_INIT && server.fusionState == FusionState.PENDING_FUSION) {
-                        requestQueue.add(request);
-                        return;
-                    }
-                     */
-                    bufferOut.put(request.encode());
+                if (bufferOut.remaining() < requestQueue.peek().bufferLength()) {
+                    return;
+                }
+
+                var request = requestQueue.poll();
+                // If there is a fusion request while the server is pending a fusion,
+                // then it's dismissed waiting for the current fusion to finish by putting
+                // the request to the last request of the queue
+                switch (request) {
+                    case RequestFusionInit ignored && server.fusionState == FusionState.PENDING_FUSION ->
+                            requestQueue.add(request);
+
+                    default -> bufferOut.put(request.encode());
                 }
             }
         }
@@ -627,6 +676,7 @@ public class ServerChatFusion {
             activeSinceLastTimeoutCheck = true;
             sc.write(bufferOut.flip());
             bufferOut.compact();
+            processOut();
             updateInterestOps();
         }
 

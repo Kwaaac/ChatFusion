@@ -1,11 +1,13 @@
 package test.main.java.reader;
 
+import main.java.Utils.Utils;
 import main.java.reader.InetSocketAddressReader;
 import main.java.reader.Reader;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -28,15 +30,11 @@ class SocketAdressReaderTest {
         assertEquals(expected, sr.get());
     }
 
-    private void aled(String... args) {
-        System.out.println(Arrays.toString(args));
-    }
-
     @Test
-    public void test() {
-        var lst = List.of("Bob", "Guillaume", "Max");
-
-        var names = lst.toArray(new String[0]);
-        aled(names);
+    public void mainTest(){
+        Path path = Utils.getPathToDownloadWithFileName("bob.txt");
+        System.out.println("path = " + path);
+        System.out.println("path.getRoot() = " + path.getRoot());
+        System.out.println("path.getParent() = " + path.getParent());
     }
 }
