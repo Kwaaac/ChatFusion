@@ -1,21 +1,19 @@
 package main.java.client;
 
-import main.java.Utils.Utils;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class FileChatFusion {
-    private final String filename;
     private final int nbBlocksMax;
     private final ByteBuffer content;
     private final State state;
+    private Path filepath;
     private int nbBlockCurrent;
 
-    private FileChatFusion(String filename, int nbBlocksMax, ByteBuffer content, State state) {
-        this.filename = filename;
+    private FileChatFusion(Path filepath, int nbBlocksMax, ByteBuffer content, State state) {
+        this.filepath = filepath;
         this.nbBlocksMax = nbBlocksMax;
         this.content = content;
         this.state = state;
@@ -36,11 +34,11 @@ public final class FileChatFusion {
         var content = Files.readAllBytes(filePath);
         var nbBlocksMax = (int) Math.ceil(content.length / 5000d);
 
-        return new FileChatFusion(filePath.getFileName().toString(), nbBlocksMax, ByteBuffer.allocateDirect(content.length).put(content).flip(), State.WRITE);
+        return new FileChatFusion(filePath, nbBlocksMax, ByteBuffer.allocateDirect(content.length).put(content).flip(), State.WRITE);
     }
 
-    public static FileChatFusion initToReceive(String filename, int nbBlocksMax) {
-        return new FileChatFusion(filename, nbBlocksMax, ByteBuffer.allocateDirect(5_000 * nbBlocksMax), State.READ);
+    public static FileChatFusion initToReceive(Path filepath, int nbBlocksMax) {
+        return new FileChatFusion(filepath, nbBlocksMax, ByteBuffer.allocateDirect(5_000 * nbBlocksMax), State.READ);
     }
 
     public int getNbBlocksMax() {
@@ -54,21 +52,22 @@ public final class FileChatFusion {
      * @throws IOException
      */
     private Path writeFile() throws IOException {
-        var filePath = Utils.getPathToDownloadWithFileName(filename);
         int i = 1;
 
         // Ensure the file can be created if a file with same name already exist
-        while (filePath.toFile().exists()) {
-            var extensionSplitted = filename.split("\\.");
+        while (Files.exists(filepath)) {
+            var extensionSplitted = filepath.getFileName().toString().split("\\.");
             var file = extensionSplitted[0];
             var extension = extensionSplitted[1];
-            filePath = Utils.getPathToDownloadWithFileName(file + " (" + i++ + ")." + extension);
+
+            var filename = file + " (" + i++ + ")." + extension;
+            filepath = Path.of(filepath.getParent().toString(), filename);
         }
 
         var block = new byte[content.remaining()];
         content.get(block);
-        Files.write(filePath, block);
-        return filePath;
+        Files.write(filepath, block);
+        return filepath;
     }
 
     /**
@@ -89,7 +88,7 @@ public final class FileChatFusion {
 
         content.limit(oldLimit);
         nbBlockCurrent++;
-        System.out.println("File " + filename + " sent as " + nbBlockCurrent + "/" + nbBlocksMax);
+        System.out.println("File " + filepath.getFileName().toString() + " sent as " + nbBlockCurrent + "/" + nbBlocksMax);
         return result;
     }
 
@@ -99,7 +98,7 @@ public final class FileChatFusion {
         }
         content.put(block);
         nbBlockCurrent++;
-        System.out.println("File from " + loginSrc + "[" + serverNameSrc + "]: " + filename + " download in process " + nbBlockCurrent + "/" + nbBlocksMax);
+        System.out.println("File from " + loginSrc + "[" + serverNameSrc + "]: " + filepath.getFileName().toString() + " download in process " + nbBlockCurrent + "/" + nbBlocksMax);
         if (nbBlockCurrent == nbBlocksMax) {
             Path filePath;
             try {
