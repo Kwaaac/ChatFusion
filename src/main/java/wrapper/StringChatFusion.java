@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
  * Allowing to get the total length of a {@link ByteBuffer} conversion and to convert it into a {@link ByteBuffer} in UTF8
  */
 public record StringChatFusion(String string) implements BufferSerializable {
+
     public int size() {
         return string.getBytes(UTF8).length;
     }

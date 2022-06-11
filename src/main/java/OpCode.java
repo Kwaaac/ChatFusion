@@ -40,16 +40,29 @@ public enum OpCode {
         this.requestReader = requestReader;
     }
 
+    /**
+     * Gets the {@link OpCode} associated with the given byte
+     * @param opcode the byte to convert
+     * @return an optional containing an {@link OpCode}
+     */
     public static Optional<OpCode> getOpCodeFromByte(byte opcode) {
         var conn = codeMap.get((int) opcode);
         return conn == null ? Optional.empty() : Optional.of(conn);
     }
 
+    /**
+     * Gets a Reader of request
+     * @return the {@link Reader}
+     */
     public Reader<Request> getRequestReader() {
         requestReader.reset();
         return requestReader;
     }
 
+    /**
+     * Creates the {@link OpCode} as a byte
+     * @return the byte created
+     */
     public byte getOpCode() {
         return (byte) opCode;
     }
