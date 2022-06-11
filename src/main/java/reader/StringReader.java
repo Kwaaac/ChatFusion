@@ -13,6 +13,12 @@ public class StringReader implements Reader<String> {
     private String value;
     private int sizeValue = -1;
 
+    /**
+     * Retrieves the {@link String} from the {@link ByteBuffer} and stores them
+     * @param buffer the {@link ByteBuffer} containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     public ProcessStatus process(ByteBuffer buffer) {
         if (this.state == State.DONE || this.state == State.ERROR) {
             throw new IllegalStateException();
@@ -68,6 +74,11 @@ public class StringReader implements Reader<String> {
 
     }
 
+    /**
+     * Gets the {@link String} retrieved by the process method
+     * @return the {@link String} associated with the {@link Reader}
+     * @throws IllegalStateException If the process method is not DONE
+     */
     public String get() {
         if (this.state != State.DONE) {
             throw new IllegalStateException();
@@ -76,6 +87,9 @@ public class StringReader implements Reader<String> {
         }
     }
 
+    /**
+     * Resets the {@link Reader} to make it reusable
+     */
     public void reset() {
         this.state = State.WAIT_INT;
         this.internalBuffer = ByteBuffer.allocate(Integer.BYTES);
@@ -83,6 +97,9 @@ public class StringReader implements Reader<String> {
 
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT_INT, WAIT_STRING, ERROR
     }

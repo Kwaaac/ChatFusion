@@ -10,6 +10,12 @@ public class RequestFusionRequestResponseReader implements Reader<Request> {
     private Byte status;
     private State state = State.WAIT_STATUS;
 
+    /**
+     * Retrieves datas from the {@link ByteBuffer} and stores them
+     * @param bb the {@link ByteBuffer} containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         if (state == State.DONE || state == State.ERROR) {
@@ -23,6 +29,11 @@ public class RequestFusionRequestResponseReader implements Reader<Request> {
         return ProcessStatus.DONE;
     }
 
+    /**
+     * Gets the {@link Request} retrieved by the process method
+     * @return the {@link Request} associated with the {@link Reader}
+     * @throws IllegalStateException If the process method is not DONE
+     */
     @Override
     public Request get() {
         if (state != State.DONE) {
@@ -33,11 +44,17 @@ public class RequestFusionRequestResponseReader implements Reader<Request> {
         return RequestFactory.fusionRequestAccepted();
     }
 
+    /**
+     * Resets the {@link Reader} to make it reusable
+     */
     @Override
     public void reset() {
         state = State.WAIT_STATUS;
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT_STATUS, ERROR
     }

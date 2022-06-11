@@ -10,6 +10,12 @@ public class MessageReader implements Reader<Message> {
     private String msg;
     private State state = State.WAIT_LOGIN;
 
+    /**
+     * Retrieves the {@link Message} from the {@link ByteBuffer} and stores them
+     * @param bb the {@link ByteBuffer} containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         if (this.state == State.DONE || this.state == State.ERROR) {
@@ -43,6 +49,11 @@ public class MessageReader implements Reader<Message> {
         }
     }
 
+    /**
+     * Gets the {@link Message} retrieved by the process method
+     * @return the {@link Message} associated with the {@link Reader}
+     * @throws IllegalStateException If the process method is not DONE
+     */
     @Override
     public Message get() {
         if (this.state != State.DONE) {
@@ -52,12 +63,18 @@ public class MessageReader implements Reader<Message> {
         }
     }
 
+    /**
+     * Resets the {@link Reader} to make it reusable
+     */
     @Override
     public void reset() {
         this.state = State.WAIT_LOGIN;
         stringReader.reset();
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT_LOGIN, WAIT_MSG, ERROR
     }

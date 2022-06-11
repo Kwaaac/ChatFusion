@@ -80,6 +80,9 @@ public class ClientChatFusion {
         new ClientChatFusion(args[2], new InetSocketAddress(args[0], Integer.parseInt(args[1])), args[3]).launch();
     }
 
+    /**
+     * Display how to set up your client to be able to connect to a server
+     */
     private static void usage() {
         System.out.println("""
                 Usages :
@@ -89,6 +92,9 @@ public class ClientChatFusion {
                 """);
     }
 
+    /**
+     *
+     */
     private void consoleRun() {
         try {
             try (var scanner = new Scanner(System.in)) {

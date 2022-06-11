@@ -15,16 +15,28 @@ public record Message(StringChatFusion login, StringChatFusion msg) implements B
         }
     }
 
+    /**
+     * Converts the message into a {@link String}
+     * @return the message as a {@link String}
+     */
     @Override
     public String toString() {
         return "[" + login + "]: " + msg;
     }
 
+    /**
+     * Gets the length of the {@link ByteBuffer} containing the message
+     * @return the length of the {@link ByteBuffer}
+     */
     @Override
     public int bufferLength() {
         return login().bufferLength() + msg().bufferLength();
     }
 
+    /**
+     * Fills the {@link ByteBuffer} with the necessary datas
+     * @return the {@link ByteBuffer} filled
+     */
     @Override
     public ByteBuffer encode() {
         return ByteBuffer.allocate(bufferLength()).put(login.encode()).put(msg.encode());

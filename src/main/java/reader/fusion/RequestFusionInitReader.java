@@ -24,6 +24,12 @@ public class RequestFusionInitReader implements Reader<Request> {
     String[] serverNames;
     private State state = State.WAIT_NAME;
 
+    /**
+     * Retrieves datas from the {@link ByteBuffer} and stores them
+     * @param bb the {@link ByteBuffer} containing datas
+     * @return the status of the buffer data recovery
+     * @throws IllegalStateException if the state of the recovery is DONE or ERROR
+     */
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         for (; ; ) {
@@ -88,6 +94,11 @@ public class RequestFusionInitReader implements Reader<Request> {
         }
     }
 
+    /**
+     * Gets the {@link Request} retrieved by the process method
+     * @return the {@link Request} associated with the {@link Reader}
+     * @throws IllegalStateException If the process method is not DONE
+     */
     @Override
     public Request get() {
         if (state != State.DONE) {
@@ -97,6 +108,9 @@ public class RequestFusionInitReader implements Reader<Request> {
         return RequestFactory.fusionInit(serverName, address, nbMembers, serverNames);
     }
 
+    /**
+     * Resets the {@link Reader} to make it reusable
+     */
     @Override
     public void reset() {
         stringReader.reset();
@@ -105,6 +119,9 @@ public class RequestFusionInitReader implements Reader<Request> {
         state = State.WAIT_NAME;
     }
 
+    /**
+     * The different possible states for the buffer data recovery
+     */
     private enum State {
         DONE, WAIT_NAME, WAIT_ADDRESS, WAIT_NB_MEMBERS, WAIT_SERVER_NAMES, ERROR
     }
