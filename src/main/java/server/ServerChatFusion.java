@@ -70,25 +70,45 @@ public class ServerChatFusion {
         System.out.println("Usage : ServerSumBetter serverName port");
     }
 
+    /**
+     * Determines if the {@link ServerChatFusion} is the leader of the Mega-Server
+     * @return true if the {@link ServerChatFusion} is the leader, otherwise false
+     */
     private boolean isLeader() {
         return isLeader;
     }
 
+    /**
+     * Makes the {@link ServerChatFusion} contained in the {@link Context} become the leader of the Mega-Server
+     * @param context containing the new leader of the Mega-Server
+     */
     private void setLeader(Context context) {
         this.leader = context;
         isLeader = false;
     }
 
+    /**
+     * Determines if the Object o is equals to the {@link ServerChatFusion}
+     * @param o the Object to be compared
+     * @return true if they are equals, otherwise false
+     */
     @Override
     public boolean equals(Object o) {
         return o instanceof ServerChatFusion that && Objects.equals(serverSocketChannel, that.serverSocketChannel) && Objects.equals(selector, that.selector) && Objects.equals(console, that.console) && Objects.equals(stateController, that.stateController) && Objects.equals(leader, that.leader) && Objects.equals(clientConnected, that.clientConnected);
     }
 
+    /**
+     * Returns a hashCode based on the content of the {@link ServerChatFusion}
+     * @return the hashCode generated
+     */
     @Override
     public int hashCode() {
         return Objects.hash(serverSocketChannel, selector, console, stateController, leader, clientConnected);
     }
 
+    /**
+     * Prints the different commands usable on the {@link ServerChatFusion}
+     */
     private void printConsoleUsage() {
         System.out.println("""
                 List of commands:
@@ -99,6 +119,9 @@ public class ServerChatFusion {
                 """);
     }
 
+    /**
+     * Runs the commands selected in the console of the {@link ServerChatFusion}
+     */
     private void consoleRun() {
 
         try (var scanner = new Scanner(System.in)) {
@@ -126,6 +149,10 @@ public class ServerChatFusion {
         logger.info("Console thread stopping");
     }
 
+    /**
+     * Launches the {@link ServerChatFusion}
+     * @throws IOException If an I/O error occurs
+     */
     public void launch() throws IOException {
         System.out.println(serverSocketChannel.getLocalAddress());
         serverSocketChannel.configureBlocking(false);
@@ -179,6 +206,10 @@ public class ServerChatFusion {
         fusionState = FusionState.PENDING_FUSION;
     }
 
+    /**
+     * Checks the state of the {@link SelectionKey} and executes methods consequently
+     * @param key
+     */
     private void treatKey(SelectionKey key) {
         try {
             if (key.isValid() && key.isAcceptable() && stateController.getState() == State.WORKING) {
@@ -205,6 +236,11 @@ public class ServerChatFusion {
         }
     }
 
+    /**
+     * Makes the {@link ServerChatFusion} accepts the connection with the {@link SelectionKey}
+     * @param key the key to be accepted by the {@link ServerChatFusion}
+     * @throws IOException If an I/O error occurs
+     */
     private void doAccept(SelectionKey key) throws IOException {
         var sc = ((ServerSocketChannel) key.channel()).accept();
         if (sc == null) {
@@ -217,6 +253,10 @@ public class ServerChatFusion {
 
     }
 
+    /**
+     * Closes the connection with the {@link SelectionKey}
+     * @param key the {@link SelectionKey} disconnected
+     */
     private void silentlyClose(SelectionKey key) {
         Channel sc = key.channel();
         if (sc instanceof ServerSocketChannel) {
@@ -253,6 +293,11 @@ public class ServerChatFusion {
         }
     }
 
+    /**
+     * Redirects a private message form the sender to a {@link main.java.client.ClientChatFusion}
+     * @param request the {@link Request} sent by the sender
+     * @param sender the sender of the private message
+     */
     private void messagePrivate(RequestMessagePrivate request, SelectionKey sender) {
         String serverDst = request.serverDst().string();
         String loginDst = request.loginDst().string();
@@ -279,6 +324,11 @@ public class ServerChatFusion {
     }
 
 
+    /**
+     * Adds a {@link main.java.client.ClientChatFusion} to the clientConnected List
+     * @param login the login of the new {@link main.java.client.ClientChatFusion}
+     * @param key the {@link SelectionKey} associated to the new {@link main.java.client.ClientChatFusion}
+     */
     public void addClient(String login, SelectionKey key) {
         var refused = login.getBytes(StandardCharsets.UTF_8).length > 30;
         var client = (Context) key.attachment();
@@ -298,6 +348,10 @@ public class ServerChatFusion {
         client.queueRequest(RequestFactory.loginAccepted(serverName));
     }
 
+    /**
+     * Redirects the private file sent to its destination
+     * @param requestMessageFilePrivate the {@link Request} containing the private file
+     */
     private void redirectFilePrivate(RequestMessageFilePrivate requestMessageFilePrivate) {
         var serverDst = requestMessageFilePrivate.serverDst().string();
         if (serverName.equals(serverDst)) {
@@ -322,6 +376,12 @@ public class ServerChatFusion {
         this.leader.queueRequest(requestMessageFilePrivate);
     }
 
+    /**
+     * Handles the FusionInit operation
+     * @param requestFusionInit the {@link Request} containing the FusionInit
+     * @param keyServer the {@link SelectionKey} containing the {@link ServerChatFusion} initiating the merge
+     * @throws IOException If an I/O error occurs
+     */
     private void handleFusionInit(RequestFusionInit requestFusionInit, SelectionKey keyServer) throws IOException {
         var otherServerName = requestFusionInit.serverName().string();
         var otherServerAddress = requestFusionInit.address().address();
@@ -339,6 +399,11 @@ public class ServerChatFusion {
         updateLeader(otherServerName, otherServerAddress, keyServer);
     }
 
+    /**
+     * Handles the FusionInitRequest operation
+     * @param requestFusionRequest the {@link Request} containing the FusionInitRequest
+     * @param serverKey the {@link SelectionKey} containing the {@link ServerChatFusion} asking the merge
+     */
     private void handleFusionRequest(RequestFusionRequest requestFusionRequest, SelectionKey serverKey) {
         if (this.fusionState == FusionState.PENDING_FUSION) {
             ((Context) serverKey.attachment()).queueRequest(RequestFactory.fusionRequestRefused());
@@ -380,6 +445,10 @@ public class ServerChatFusion {
         actualConnection = null;
     }
 
+    /**
+     * Handles the FusionInitFWD operation
+     * @param requestFusionInitFWD the {@link Request} containing the FusionInitFWD
+     */
     private void handleForwardingFusion(RequestFusionInitFWD requestFusionInitFWD) throws IOException {
         var leaderAddress = requestFusionInitFWD.address().address();
 
@@ -393,12 +462,23 @@ public class ServerChatFusion {
         actualConnection.queueRequest(RequestFactory.fusionInit(serverName, (InetSocketAddress) serverSocketChannel.getLocalAddress(), serverConnected.size(), names));
     }
 
+    /**
+     * Updates the connection between the {@link ServerChatFusion} and the old connected {@link ServerChatFusion} connecting with the new one
+     * @param sc the {@link SocketChannel} of the new connected {@link ServerChatFusion}
+     * @param address the {@link InetSocketAddress} of the new connected {@link ServerChatFusion}
+     * @throws IOException IOException If an I/O error occurs
+     */
     private void updateConnection(SocketChannel sc, InetSocketAddress address) throws IOException {
         actualConnectionSocketChannel = SocketChannel.open();
         actualConnectionSocketChannel.configureBlocking(false);
         actualConnectionSocketChannel.connect(address);
     }
 
+    /**
+     * Changes the {@link ServerChatFusion} leader of the Mega-Server
+     * @param fusionChangeLeader the new leader of the Mega-Server
+     * @throws IOException IOException If an I/O error occurs
+     */
     private void handleChangeLeader(RequestFusionChangeLeader fusionChangeLeader) throws IOException {
         updateConnection(leaderSocketChannel, fusionChangeLeader.address().address());
 
@@ -409,6 +489,11 @@ public class ServerChatFusion {
         leader.queueRequest(RequestFactory.fusionMerge(serverName));
     }
 
+    /**
+     * Handles the FusionMerge operation
+     * @param requestFusionMerge the {@link Request} containing the FusionMerge operation
+     * @param serverKey the {@link SelectionKey} containing the new {@link ServerChatFusion} to connect
+     */
     private void handleFusionMerge(RequestFusionMerge requestFusionMerge, SelectionKey serverKey) {
         if (this.memberAddList.remove(requestFusionMerge.serverName().string())) {
             this.serverConnected.put(serverKey, requestFusionMerge.serverName().string());
@@ -420,10 +505,16 @@ public class ServerChatFusion {
         }
     }
 
+    /**
+     * The different states of the server commands
+     */
     private enum State {
         WORKING, STOP_ACCEPTING, SHUTDOWN
     }
 
+    /**
+     * The different states of the fusion operation
+     */
     private enum FusionState {
         PENDING_FUSION, IDLE
     }
@@ -514,6 +605,9 @@ public class ServerChatFusion {
 
         }
 
+        /**
+         * Reads the OpCode containing in the {@link ByteBuffer} bufferIn
+         */
         private void byteOpCodeReader() {
             bufferIn.flip();
             var optionalOpCode = OpCode.getOpCodeFromByte(bufferIn.get());
@@ -528,6 +622,11 @@ public class ServerChatFusion {
             }
         }
 
+        /**
+         * Handle the {@link Request} to read its content and act consequently
+         * @param request The {@link Request} to handle
+         * @throws IOException
+         */
         private void requestHandler(Request request) throws IOException {
             switch (request) {
                 case RequestLoginAnonymous requestLoginAnonymous ->
@@ -641,6 +740,9 @@ public class ServerChatFusion {
             key.interestOps(ops);
         }
 
+        /**
+         * Close the {@link Context} if its inactive
+         */
         public void closeIfInactive() {
             if (!activeSinceLastTimeoutCheck) {
                 silentlyClose();
@@ -650,6 +752,9 @@ public class ServerChatFusion {
             activeSinceLastTimeoutCheck = true;
         }
 
+        /**
+         * Close the {@link Context}
+         */
         private void silentlyClose() {
             try {
                 sc.close();
@@ -691,6 +796,10 @@ public class ServerChatFusion {
             updateInterestOps();
         }
 
+        /**
+         * Connect the {@link SocketChannel} associated with the {@link Context}
+         * @throws IOException If some I/O exception occurs
+         */
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             updateInterestOps();
@@ -713,6 +822,10 @@ public class ServerChatFusion {
             }
         }
 
+        /**
+         * Prints the content of the {@link SelectionKey} pasted as argument
+         * @param key the {@link SelectionKey} to read
+         */
         static void printSelectedKey(SelectionKey key) {
             var channel = key.channel();
             if (channel instanceof ServerSocketChannel) {
@@ -723,6 +836,11 @@ public class ServerChatFusion {
             }
         }
 
+        /**
+         * Returns a {@link String} containing the action to do for the {@link SelectionKey}
+         * @param key the {@link SelectionKey} to read
+         * @return the {@link String} containing the action to do
+         */
         private static String possibleActionsToString(SelectionKey key) {
             if (!key.isValid()) {
                 return "CANCELLED";
