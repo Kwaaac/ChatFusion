@@ -208,7 +208,7 @@ public class ServerChatFusion {
 
     /**
      * Checks the state of the {@link SelectionKey} and executes methods consequently
-     * @param key
+     * @param key the {@link SelectionKey} used
      */
     private void treatKey(SelectionKey key) {
         try {

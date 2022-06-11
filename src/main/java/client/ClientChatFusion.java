@@ -93,7 +93,7 @@ public class ClientChatFusion {
     }
 
     /**
-     *
+     * Read the console and run the chosen command
      */
     private void consoleRun() {
         try {
@@ -109,6 +109,10 @@ public class ClientChatFusion {
         }
     }
 
+    /**
+     * Launches the clients
+     * @throws IOException If an I/O error occurs
+     */
     public void launch() throws IOException {
         sc.configureBlocking(false);
         var key = sc.register(selector, SelectionKey.OP_CONNECT);
@@ -126,6 +130,9 @@ public class ClientChatFusion {
         }
     }
 
+    /**
+     * Displays the different existing commands
+     */
     private void printConsoleUsage() {
         System.out.println("""
                 List of commands:
@@ -189,6 +196,10 @@ public class ClientChatFusion {
     }
 
 
+    /**
+     * Checks the state of the {@link SelectionKey} and executes methods consequently
+     * @param key the {@link SelectionKey} used
+     */
     private void treatKey(SelectionKey key) {
         try {
             if (key.isValid() && key.isConnectable()) {
@@ -206,6 +217,10 @@ public class ClientChatFusion {
         }
     }
 
+    /**
+     * Closes the connection with the {@link SelectionKey}
+     * @param key the {@link SelectionKey} disconnected
+     */
     private void silentlyClose(SelectionKey key) {
         Channel sc = key.channel();
         try {
@@ -215,6 +230,9 @@ public class ClientChatFusion {
         }
     }
 
+    /**
+     * The different state of connection
+     */
     private enum State {
         CONNECTED, PENDING_ANONYMOUS, PENDING_PASSWORD
     }
@@ -233,6 +251,10 @@ public class ClientChatFusion {
             }
         }
 
+        /**
+         * Gets the instructions from the BlockingQueue
+         * @return the instructions recovered
+         */
         public String processCommand() {
             synchronized (lock) {
                 return msgQueue.poll();
@@ -311,6 +333,11 @@ public class ClientChatFusion {
             }
         }
 
+        /**
+         * Handles the request passed as argument
+         * @param request the request to handle
+         * @throws IOException If an I/O error occurs
+         */
         private void requestHandler(Request request) throws IOException {
             switch (request) {
 
@@ -492,21 +519,45 @@ public class ClientChatFusion {
             }
         }
 
+        /**
+         * Connects the {@link ClientChatFusion} to this {@link Context}
+         * @throws IOException If an I/O error occurs
+         */
         public void doConnect() throws IOException {
             if (!sc.finishConnect()) return; // the selector gave a bad hint
             processConnection();
             updateInterestOps();
         }
 
+        /**
+         * Add a {@link Request} associated with the PublicMessage command into the queueRequest
+         * @param login the sender of the message
+         * @param message the message written by the sender
+         */
         public void sendPublicMessage(String login, String message) {
             queueRequest(RequestFactory.publicMessage(serverName, login, message));
         }
 
-
+        /**
+         * Add a {@link Request} associated with the PrivateMessage command into the queueRequest
+         * @param serverDst the {@link main.java.server.ServerChatFusion} destination
+         * @param loginSrc the sender of the message
+         * @param loginDst the {@link ClientChatFusion} destination of the message
+         * @param message the message written by the sender
+         */
         public void sendPrivateMessage(String serverDst, String loginSrc, String loginDst, String message) {
             queueRequest(RequestFactory.privateMessage(serverName, loginSrc, serverDst, loginDst, message));
         }
-          
+
+        /**
+         * Add a {@link Request} associated with the PrivateMessage command into the queueRequest
+         * @param serverDst the {@link main.java.server.ServerChatFusion} destination
+         * @param loginSrc the sender of the message
+         * @param loginDst the {@link ClientChatFusion} destination of the message
+         * @param nbBlockMax the number of file blocks
+         * @param blockSize the size of the different blocks
+         * @param block the paquet containing the file
+         */
         public void sendFilePrivate(String loginSrc, String serverDst, String loginDst, String filename, int nbBlockMax, int blockSize, byte[] block) {
             queueFileToSend(RequestFactory.privateFile(serverName, loginSrc, serverDst, loginDst, filename, nbBlockMax, blockSize, block));
 

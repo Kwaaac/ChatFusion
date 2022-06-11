@@ -39,10 +39,20 @@ public final class FileChatFusion {
         return new FileChatFusion(filePath, nbBlocksMax, ByteBuffer.allocateDirect(content.length).put(content).flip(), State.WRITE);
     }
 
+    /**
+     * Creates a {@link FileChatFusion} containing the file divided in "nbBlock" blocks
+     * @param filepath the path of the file
+     * @param nbBlocksMax the number of file blocks
+     * @return the {@link FileChatFusion} created
+     */
     public static FileChatFusion initToReceive(Path filepath, int nbBlocksMax) {
         return new FileChatFusion(filepath, nbBlocksMax, ByteBuffer.allocateDirect(5_000 * nbBlocksMax), State.READ);
     }
 
+    /**
+     * Gets the number of file blocks
+     * @return number of file blocks
+     */
     public int getNbBlocksMax() {
         return nbBlocksMax;
     }
@@ -94,6 +104,14 @@ public final class FileChatFusion {
         return result;
     }
 
+    /**
+     * Reads the content of the {@link FileChatFusion} while its readable
+     * @param block tthe block containing file data
+     * @param loginSrc the sender of the file
+     * @param serverNameSrc the server of the sender
+     * @return if the file has been download return true, otherwise false
+     * @throws IOException If an I/O error occurs
+     */
     public boolean readUntilWriteAvailable(byte[] block, String loginSrc, String serverNameSrc) throws IOException {
         if (state == State.WRITE) {
             throw new FileChatFusionException("Method prohibited");
