@@ -34,7 +34,7 @@ public record Message(StringChatFusion login, StringChatFusion msg) implements B
     }
 
     /**
-     * Fills the {@link ByteBuffer} with the necessary datas
+     * Fills the {@link ByteBuffer} with the necessary data
      * @return the {@link ByteBuffer} filled
      */
     @Override

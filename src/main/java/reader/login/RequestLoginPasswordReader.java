@@ -14,8 +14,8 @@ public class RequestLoginPasswordReader implements Reader<Request> {
     private State state = State.WAIT_LOGIN;
 
     /**
-     * Retrieves datas from the {@link ByteBuffer} and stores them
-     * @param bb the {@link ByteBuffer} containing datas
+     * Retrieves data from the {@link ByteBuffer} and stores them
+     * @param bb the {@link ByteBuffer} containing data
      * @return the status of the buffer data recovery
      * @throws IllegalStateException if the state of the recovery is DONE or ERROR
      */

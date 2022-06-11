@@ -10,7 +10,7 @@ public class IntReader implements Reader<Integer> {
 
     /**
      * Retrieves the {@link Integer} from the {@link ByteBuffer} and stores them
-     * @param buffer the bytebuffer containing datas
+     * @param buffer the bytebuffer containing data
      * @return the status of the buffer data recovery
      * @throws IllegalStateException if the state of the recovery is DONE or ERROR
      */

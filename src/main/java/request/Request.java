@@ -9,8 +9,16 @@ import main.java.OpCode;
  * The buffer is in read-mode when get
  */
 public sealed interface Request extends BufferSerializable permits RequestFusionChangeLeader, RequestFusionInit, RequestFusionInitFWD, RequestFusionInitKO, RequestFusionInitOK, RequestFusionMerge, RequestFusionRequest, RequestFusionRequestResponse, RequestLoginAccepted, RequestLoginAnonymous, RequestLoginPassword, RequestLoginRefused, RequestMessageFilePrivate, RequestMessagePrivate, RequestMessagePublic {
+
+    /**
+     * Gets the {@link OpCode} associated with the {@link Request}
+     * @return the {@link OpCode} associated with the {@link Request}
+     */
     OpCode getOpCode();
 
+    /**
+     * The different possible states for the {@link Request} actions
+     */
     enum ReadingState {
         READING_REQUEST, WAITING_FOR_REQUEST
     }

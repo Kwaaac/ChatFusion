@@ -15,7 +15,7 @@ public class StringReader implements Reader<String> {
 
     /**
      * Retrieves the {@link String} from the {@link ByteBuffer} and stores them
-     * @param buffer the {@link ByteBuffer} containing datas
+     * @param buffer the {@link ByteBuffer} containing data
      * @return the status of the buffer data recovery
      * @throws IllegalStateException if the state of the recovery is DONE or ERROR
      */

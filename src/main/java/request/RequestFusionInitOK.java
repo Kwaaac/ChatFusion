@@ -5,7 +5,6 @@ import main.java.wrapper.InetIpv4ChatFusion;
 import main.java.wrapper.StringChatFusion;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 
 public record RequestFusionInitOK(StringChatFusion serverName,
@@ -19,6 +18,10 @@ public record RequestFusionInitOK(StringChatFusion serverName,
             throw new IllegalArgumentException("nbMembers and number of server given must be identical");
     }
 
+    /**
+     * Returns the length of a {@link ByteBuffer} containing the {@link Request} data
+     * @return the length of the {@link ByteBuffer}
+     */
     @Override
     public int bufferLength() {
         return 1
@@ -28,6 +31,10 @@ public record RequestFusionInitOK(StringChatFusion serverName,
                 + names.stream().mapToInt(StringChatFusion::bufferLength).sum(); // names of every servers;
     }
 
+    /**
+     * Encodes the necessary data and puts it in the {@link ByteBuffer}
+     * @return the {@link ByteBuffer} filled
+     */
     @Override
     public ByteBuffer encode() {
         var buffer = ByteBuffer.allocate(bufferLength());
@@ -43,6 +50,10 @@ public record RequestFusionInitOK(StringChatFusion serverName,
         return buffer.flip();
     }
 
+    /**
+     * Gets the {@link OpCode} associated with the {@link Request}
+     * @return the {@link OpCode} associated with the {@link Request}
+     */
     @Override
     public OpCode getOpCode() {
         return OpCode.FUSION_INIT_OK;
