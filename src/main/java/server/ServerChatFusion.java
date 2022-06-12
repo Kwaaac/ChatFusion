@@ -27,7 +27,7 @@ public class ServerChatFusion {
     private final ServerSocketChannel serverSocketChannel;
     private final Selector selector;
     private final Thread console;
-    private final StateFusionController stateController = new StateFusionController();
+    private final StateServerCommandController stateController = new StateServerCommandController();
     private final HashMap<SelectionKey, String> clientConnected = new HashMap<>();
 
     private final HashMap<String, SelectionKey> clientNameConnected = new HashMap<>();
@@ -519,9 +519,13 @@ public class ServerChatFusion {
         PENDING_FUSION, IDLE
     }
 
-    private static class StateFusionController {
+    /**
+     *  Class thread safe used to hold and give the commands made by a user.
+     *  It also allows to update state of the server within another thread.
+     */
+    private static class StateServerCommandController {
         private final Object lock = new Object();
-        private final BlockingQueue<String> requestFusionQueue = new ArrayBlockingQueue<>(10);
+        private final BlockingQueue<String> queue = new ArrayBlockingQueue<>(10);
         private State state = State.WORKING;
 
         /**
@@ -529,23 +533,37 @@ public class ServerChatFusion {
          */
         public void sendCommand(String msg, Selector selector) {
             synchronized (lock) {
-                requestFusionQueue.add(msg);
+                queue.add(msg);
                 selector.wakeup();
             }
         }
 
+        /**
+         * Poll command from the queue and returns it, can return null
+         *
+         * @return a String of a command, or nullif there is no command
+         */
         public String processCommand() {
             synchronized (lock) {
-                return requestFusionQueue.poll();
+                return queue.poll();
             }
         }
 
+        /**
+         * Update the state of the server to the givens state
+         * @param state given server state
+         */
         public void updateState(State state) {
             synchronized (lock) {
                 this.state = state;
             }
         }
 
+        /**
+         * Get the last updated state of the server
+         *
+         * @return State of the server
+         */
         public State getState() {
             synchronized (lock) {
                 return state;
@@ -601,8 +619,6 @@ public class ServerChatFusion {
                     }
                 }
             }
-
-
         }
 
         /**

@@ -7,6 +7,16 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * This class represent a file being sent or being downloaded by client.
+ * As this class can handle both, there is only 2 factory constructor that init a
+ * {@link FileChatFusion} either to a client sending file, or a client receiving file.
+ *
+ * Any use of method for sending file for a client receiving file, {@link FileChatFusionException} will occurs
+ *
+ * This class allows to handle the sending a file while continuing the flow process of the application.
+ * Keeping tract of the sending and keeping track of the downloading
+ */
 public final class FileChatFusion {
     private final int nbBlocksMax;
     private final ByteBuffer content;
@@ -22,11 +32,11 @@ public final class FileChatFusion {
     }
 
     /**
-     * Will put the content {@link ByteBuffer} to read-mode as there is no more data to put into it
+     * Prepare a {@link FileChatFusion} to send to another client
      *
-     * @param filePath
-     * @return
-     * @throws IOException
+     * @param filePath path of the file to read the bytes through
+     * @return a FileChatFusion, containing the bytes of a file
+     * @throws IOException if any I/O exception occurs while reading the file
      */
     public static FileChatFusion initToSend(Path filePath) throws IOException {
         if (!Files.isReadable(filePath)) {
@@ -40,7 +50,8 @@ public final class FileChatFusion {
     }
 
     /**
-     * Creates a {@link FileChatFusion} containing the file divided in "nbBlock" blocks
+     * Prepare a {@link FileChatFusion} to receive an incoming file from a client
+     *
      * @param filepath the path of the file
      * @param nbBlocksMax the number of file blocks
      * @return the {@link FileChatFusion} created
@@ -58,7 +69,9 @@ public final class FileChatFusion {
     }
 
     /**
-     * Write the file into an actual file
+     * Write the byte contained within a real file.
+     *
+     * If the file already exist, a mease will duplicate the file by adding `filename (n).exmpl` to the file name
      *
      * @return return the path where the file were written
      * @throws IOException
@@ -83,9 +96,11 @@ public final class FileChatFusion {
     }
 
     /**
-     * content buffer is in readMode
+     * Writes partially the contained file stored in the byte array.
+     * Uses this method to send a block of the file content
      *
      * @return byte array to send to client
+     * @throws FileChatFusionException if the {@link FileChatFusion} is in READ mode
      */
     public byte[] write() {
         if (state == State.READ) {
@@ -105,12 +120,14 @@ public final class FileChatFusion {
     }
 
     /**
-     * Reads the content of the {@link FileChatFusion} while its readable
+     * Read the content of the file, and stores it. If the file is complete, then the file is written in the given client path
+     *
      * @param block tthe block containing file data
      * @param loginSrc the sender of the file
      * @param serverNameSrc the server of the sender
      * @return if the file has been download return true, otherwise false
      * @throws IOException If an I/O error occurs
+     * @throws FileChatFusionException If the {@link FileChatFusion} is in WRITE mode
      */
     public boolean readUntilWriteAvailable(byte[] block, String loginSrc, String serverNameSrc) throws IOException {
         if (state == State.WRITE) {
