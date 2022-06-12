@@ -111,6 +111,7 @@ public class ClientChatFusion {
 
     /**
      * Launches the clients
+     *
      * @throws IOException If an I/O error occurs
      */
     public void launch() throws IOException {
@@ -137,8 +138,8 @@ public class ClientChatFusion {
         System.out.println("""
                 List of commands:
                     - /help -> print this usage section
-                    - /w [server_destination_name] [login_client] [message] -> whisper a private message to a client
-                    - /wf [server_destination_name] [login_client] [filename_in_the_transfert_directory]-> whisper a private file to a client
+                    - @[server_destination_name]:[login_client] [message] -> whisper a private message to a client
+                    - /[server_destination_name]:[login_client] [filename_in_the_transfert_directory]-> whisper a private file to a client
                 """);
     }
 
@@ -154,15 +155,13 @@ public class ClientChatFusion {
         switch (msg) {
             case String msgString && msgString.startsWith("/help") -> printConsoleUsage();
             case String msgString && msgString.startsWith("/wf") -> {
-                var commands = msgString.split(" ");
-                if (commands.length != 4) {
-                    System.out.println("Wrong usage of command /wf");
-                    printConsoleUsage();
-                    return;
-                }
-                var serverDst = commands[1];
-                var loginDst = commands[2];
-                var filepath = Path.of(transfertDir, commands[3]);
+                var message = stripMessageIntoCommand(msgString);
+                if (message == null) return;
+                var commands = message[0].substring(1).split(":");
+
+                var serverDst = commands[0];
+                var loginDst = commands[1];
+                var filepath = Path.of(transfertDir, message[1]);
                 try {
                     var fileChatFusion = FileChatFusion.initToSend(filepath);
 
@@ -175,29 +174,37 @@ public class ClientChatFusion {
                     System.out.println(e.getMessage());
                 }
             }
-            case String msgString && msgString.startsWith("/w") ->{
-                String[] strings = msgString.split(" ", 4);
-                if (strings.length != 4) {
-                    System.out.println("Wrong usage of command /w");
-                    printConsoleUsage();
-                    return;
-                }
-                var serverDst = strings[1];
-                var loginDst = strings[2];
-                var message = strings[3];
+            case String msgString && msgString.startsWith("/w") -> {
+                var message = stripMessageIntoCommand(msgString);
+                if (message == null) return;
+                var command = message[0].substring(1).split(":");
+
+                var serverDst = command[1];
+                var loginDst = command[2];
                 var time = LocalDateTime.now();
 
-                System.out.println("To :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + message);
-                uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message);
+                System.out.println("To :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + message[1]);
+                uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message[1]);
 
             }
             default -> uniqueContext.sendPublicMessage(login, msg);
         }
     }
 
+    private String[] stripMessageIntoCommand(String msgString) {
+        var message = msgString.split(" ");
+        if (message.length != 2) {
+            System.out.println("Wrong usage of command: " + msgString.charAt(0));
+            printConsoleUsage();
+            return null;
+        }
+        return message;
+    }
+
 
     /**
      * Checks the state of the {@link SelectionKey} and executes methods consequently
+     *
      * @param key the {@link SelectionKey} used
      */
     private void treatKey(SelectionKey key) {
@@ -219,6 +226,7 @@ public class ClientChatFusion {
 
     /**
      * Closes the connection with the {@link SelectionKey}
+     *
      * @param key the {@link SelectionKey} disconnected
      */
     private void silentlyClose(SelectionKey key) {
@@ -253,6 +261,7 @@ public class ClientChatFusion {
 
         /**
          * Gets the instructions from the BlockingQueue
+         *
          * @return the instructions recovered
          */
         public String processCommand() {
@@ -335,6 +344,7 @@ public class ClientChatFusion {
 
         /**
          * Handles the request passed as argument
+         *
          * @param request the request to handle
          * @throws IOException If an I/O error occurs
          */
@@ -375,7 +385,7 @@ public class ClientChatFusion {
                     System.out.println("From :" + loginSrc + "[" + serverSrc + "](" + time.getHour() + "h" + time.getMinute() + "): " + msg);
 
                 }
-                
+
                 case RequestMessageFilePrivate requestMessageFilePrivate -> {
                     var filename = requestMessageFilePrivate.filename().string();
                     var file = mapFile.getOrDefault(filename, FileChatFusion.initToReceive(Path.of(transfertDir, filename), requestMessageFilePrivate.nbBlocksMax()));
@@ -521,6 +531,7 @@ public class ClientChatFusion {
 
         /**
          * Connects the {@link ClientChatFusion} to this {@link Context}
+         *
          * @throws IOException If an I/O error occurs
          */
         public void doConnect() throws IOException {
@@ -531,7 +542,8 @@ public class ClientChatFusion {
 
         /**
          * Add a {@link Request} associated with the PublicMessage command into the queueRequest
-         * @param login the sender of the message
+         *
+         * @param login   the sender of the message
          * @param message the message written by the sender
          */
         public void sendPublicMessage(String login, String message) {
@@ -540,10 +552,11 @@ public class ClientChatFusion {
 
         /**
          * Add a {@link Request} associated with the PrivateMessage command into the queueRequest
+         *
          * @param serverDst the {@link main.java.server.ServerChatFusion} destination
-         * @param loginSrc the sender of the message
-         * @param loginDst the {@link ClientChatFusion} destination of the message
-         * @param message the message written by the sender
+         * @param loginSrc  the sender of the message
+         * @param loginDst  the {@link ClientChatFusion} destination of the message
+         * @param message   the message written by the sender
          */
         public void sendPrivateMessage(String serverDst, String loginSrc, String loginDst, String message) {
             queueRequest(RequestFactory.privateMessage(serverName, loginSrc, serverDst, loginDst, message));
@@ -551,12 +564,13 @@ public class ClientChatFusion {
 
         /**
          * Add a {@link Request} associated with the PrivateMessage command into the queueRequest
-         * @param serverDst the {@link main.java.server.ServerChatFusion} destination
-         * @param loginSrc the sender of the message
-         * @param loginDst the {@link ClientChatFusion} destination of the message
+         *
+         * @param serverDst  the {@link main.java.server.ServerChatFusion} destination
+         * @param loginSrc   the sender of the message
+         * @param loginDst   the {@link ClientChatFusion} destination of the message
          * @param nbBlockMax the number of file blocks
-         * @param blockSize the size of the different blocks
-         * @param block the paquet containing the file
+         * @param blockSize  the size of the different blocks
+         * @param block      the paquet containing the file
          */
         public void sendFilePrivate(String loginSrc, String serverDst, String loginDst, String filename, int nbBlockMax, int blockSize, byte[] block) {
             queueFileToSend(RequestFactory.privateFile(serverName, loginSrc, serverDst, loginDst, filename, nbBlockMax, blockSize, block));
