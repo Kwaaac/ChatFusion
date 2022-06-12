@@ -71,7 +71,7 @@ public class RequestFactory {
      * @param message the message sent by the {@link main.java.client.ClientChatFusion} source
      * @return the {@link RequestMessagePrivate} created
      */
-    public static Request privateMessage(String serverSrc, String serverDst, String loginSrc, String loginDst, String message) {
+    public static Request privateMessage(String serverSrc, String loginSrc, String serverDst, String loginDst, String message) {
         return new RequestMessagePrivate(new StringChatFusion(serverSrc), new StringChatFusion(loginSrc), new StringChatFusion(serverDst), new StringChatFusion(loginDst), new StringChatFusion(message));
     }
 

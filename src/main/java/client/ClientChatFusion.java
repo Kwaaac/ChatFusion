@@ -138,8 +138,8 @@ public class ClientChatFusion {
         System.out.println("""
                 List of commands:
                     - /help -> print this usage section
-                    - @[server_destination_name]:[login_client] [message] -> whisper a private message to a client
-                    - /[server_destination_name]:[login_client] [filename_in_the_transfert_directory]-> whisper a private file to a client
+                    - @[login_client]:[server_destination_name] [message] -> whisper a private message to a client
+                    - /[login_client]:[server_destination_name] [filename_in_the_transfert_directory]-> whisper a private file to a client
                 """);
     }
 
@@ -154,13 +154,13 @@ public class ClientChatFusion {
 
         switch (msg) {
             case String msgString && msgString.startsWith("/help") -> printConsoleUsage();
-            case String msgString && msgString.startsWith("/wf") -> {
+            case String msgString && msgString.startsWith("/") -> {
                 var message = stripMessageIntoCommand(msgString);
                 if (message == null) return;
                 var commands = message[0].substring(1).split(":");
 
-                var serverDst = commands[0];
-                var loginDst = commands[1];
+                var loginDst = commands[0];
+                var serverDst = commands[1];
                 var filepath = Path.of(transfertDir, message[1]);
                 try {
                     var fileChatFusion = FileChatFusion.initToSend(filepath);
@@ -174,20 +174,21 @@ public class ClientChatFusion {
                     System.out.println(e.getMessage());
                 }
             }
-            case String msgString && msgString.startsWith("/w") -> {
+            case String msgString && msgString.startsWith("@") -> {
                 var message = stripMessageIntoCommand(msgString);
                 if (message == null) return;
                 var command = message[0].substring(1).split(":");
 
+                var loginDst = command[0];
                 var serverDst = command[1];
-                var loginDst = command[2];
                 var time = LocalDateTime.now();
 
                 System.out.println("To :" + loginDst + "[" + serverDst + "](" + time.getHour() + "h" + time.getMinute() + "): " + message[1]);
                 uniqueContext.sendPrivateMessage(serverDst, login, loginDst, message[1]);
 
             }
-            default -> uniqueContext.sendPublicMessage(login, msg);
+            case String msgString && !(msgString.startsWith("/ ") && msgString.startsWith("@ ")) -> uniqueContext.sendPublicMessage(login, msg);
+            default -> logger.severe("Problem encountered while scanning console");
         }
     }
 
